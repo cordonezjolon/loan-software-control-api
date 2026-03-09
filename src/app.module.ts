@@ -46,10 +46,10 @@ import { DatabaseModule } from '@/database/database.module';
     // Rate limiting
     ThrottlerModule.forRootAsync({
       inject: [ConfigService],
-      useFactory: (configService: ConfigService) => ({
+      useFactory: (configService: ConfigService) => [{
         ttl: configService.get('THROTTLE_TTL', 60),
         limit: configService.get('THROTTLE_LIMIT', 10),
-      }),
+      }],
     }),
 
     // Logging module

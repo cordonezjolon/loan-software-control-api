@@ -39,16 +39,12 @@ import { GetUser } from './decorators/get-user.decorator';
     JwtAuthGuard,
     LocalAuthGuard,
     RolesGuard,
-    Roles,
-    GetUser,
   ],
   exports: [
     AuthService,
     JwtAuthGuard,
     LocalAuthGuard,
     RolesGuard,
-    Roles,
-    GetUser,
   ],
 })
 export class AuthModule {}
