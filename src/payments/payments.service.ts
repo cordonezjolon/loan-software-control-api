@@ -1,6 +1,6 @@
-import { Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Between, DataSource } from 'typeorm';
+import { Repository, Between, DataSource, QueryRunner } from 'typeorm';
 import { LoanPayment, PaymentStatus, PaymentMethod } from './entities/loan-payment.entity';
 import { LoanInstallment, InstallmentStatus } from '../installments/entities/loan-installment.entity';
 import { CreatePaymentDto } from './dto/create-payment.dto';
@@ -22,6 +22,7 @@ export class PaymentsService {
   /**
    * Create a new payment and update installment status
    */
+  // eslint-disable-next-line max-lines-per-function
   async create(createPaymentDto: CreatePaymentDto): Promise<LoanPayment> {
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
@@ -92,7 +93,7 @@ export class PaymentsService {
    */
   async createBatch(batchPaymentDto: BatchPaymentDto): Promise<{
     successful: LoanPayment[];
-    failed: Array<{ payment: any; error: string; }>;
+    failed: Array<{ payment: CreatePaymentDto; error: string; }>;
     summary: {
       total: number;
       successful: number;
@@ -102,7 +103,7 @@ export class PaymentsService {
   }> {
     const results = {
       successful: [] as LoanPayment[],
-      failed: [] as Array<{ payment: any; error: string; }>,
+      failed: [] as Array<{ payment: CreatePaymentDto; error: string; }>,
       summary: {
         total: batchPaymentDto.payments.length,
         successful: 0,
@@ -126,7 +127,7 @@ export class PaymentsService {
       } catch (error) {
         results.failed.push({
           payment: paymentData,
-          error: error.message,
+          error: error instanceof Error ? error.message : String(error),
         });
         results.summary.failed++;
       }
@@ -138,6 +139,7 @@ export class PaymentsService {
   /**
    * Find all payments with filtering and pagination
    */
+  // eslint-disable-next-line max-lines-per-function, complexity
   async findAll(findPaymentsDto: FindPaymentsDto): Promise<PaginatedResult<LoanPayment>> {
     const {
       page = 1,
@@ -307,6 +309,7 @@ export class PaymentsService {
   /**
    * Get payment statistics for reporting
    */
+  // eslint-disable-next-line max-lines-per-function
   async getPaymentStatistics(loanId?: string, clientId?: string, dateFrom?: string, dateTo?: string): Promise<{
     totalPayments: number;
     totalAmount: number;
@@ -384,6 +387,7 @@ export class PaymentsService {
   /**
    * Process refund for a payment
    */
+  // eslint-disable-next-line max-lines-per-function
   async processRefund(paymentId: string, refundAmount: number, reason: string): Promise<{
     originalPayment: LoanPayment;
     refundPayment: LoanPayment;
@@ -512,7 +516,7 @@ export class PaymentsService {
   /**
    * Recalculate installment status after payment changes
    */
-  private async recalculateInstallmentStatus(queryRunner: any, installmentId: string): Promise<void> {
+  private async recalculateInstallmentStatus(queryRunner: QueryRunner, installmentId: string): Promise<void> {
     const installment = await queryRunner.manager.findOne(LoanInstallment, {
       where: { id: installmentId },
       relations: ['payments'],

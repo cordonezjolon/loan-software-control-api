@@ -15,50 +15,9 @@ export class DatabaseExceptionFilter implements ExceptionFilter {
   catch(exception: TypeORMError, host: ArgumentsHost): void {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
-    const request = ctx.getRequest();
+    const request = ctx.getRequest<{ method: string; url: string }>();
 
-    let status = HttpStatus.INTERNAL_SERVER_ERROR;
-    let message = 'Database operation failed';
-    let details: string | undefined;
-
-    if (exception instanceof QueryFailedError) {
-      const error = exception.driverError;
-      
-      switch (error.code) {
-        case '23505': // Unique constraint violation
-          status = HttpStatus.CONFLICT;
-          message = 'Resource already exists';
-          details = 'A record with this information already exists';
-          break;
-        case '23503': // Foreign key constraint violation
-          status = HttpStatus.BAD_REQUEST;
-          message = 'Invalid reference';
-          details = 'Referenced resource does not exist';
-          break;
-        case '23502': // Not null constraint violation
-          status = HttpStatus.BAD_REQUEST;
-          message = 'Missing required field';
-          details = 'Required field cannot be null';
-          break;
-        case '23514': // Check constraint violation
-          status = HttpStatus.BAD_REQUEST;
-          message = 'Invalid data';
-          details = 'Data does not meet validation requirements';
-          break;
-        default:
-          this.logger.error(
-            `Database error: ${exception.message}`,
-            exception.stack,
-            `${request.method} ${request.url}`,
-          );
-      }
-    } else {
-      this.logger.error(
-        `Database error: ${exception.message}`,
-        exception.stack,
-        `${request.method} ${request.url}`,
-      );
-    }
+    const { status, message, details } = this.buildErrorDetails(exception, request);
 
     response.status(status).json({
       statusCode: status,
@@ -68,5 +27,47 @@ export class DatabaseExceptionFilter implements ExceptionFilter {
       path: request.url,
       method: request.method,
     });
+  }
+
+  private buildErrorDetails(
+    exception: TypeORMError,
+    request: { method: string; url: string },
+  ): { status: number; message: string; details?: string } {
+    if (!(exception instanceof QueryFailedError)) {
+      this.logger.error(
+        `Database error: ${exception.message}`,
+        exception.stack,
+        `${request.method} ${request.url}`,
+      );
+      return { status: HttpStatus.INTERNAL_SERVER_ERROR, message: 'Database operation failed' };
+    }
+
+    const error = exception.driverError as { code: string };
+    return this.mapDatabaseErrorCode(error.code, exception, request);
+  }
+
+  private mapDatabaseErrorCode(
+    code: string,
+    exception: TypeORMError,
+    request: { method: string; url: string },
+  ): { status: number; message: string; details?: string } {
+    const errorMap: Record<string, { status: number; message: string; details: string }> = {
+      '23505': { status: HttpStatus.CONFLICT, message: 'Resource already exists', details: 'A record with this information already exists' },
+      '23503': { status: HttpStatus.BAD_REQUEST, message: 'Invalid reference', details: 'Referenced resource does not exist' },
+      '23502': { status: HttpStatus.BAD_REQUEST, message: 'Missing required field', details: 'Required field cannot be null' },
+      '23514': { status: HttpStatus.BAD_REQUEST, message: 'Invalid data', details: 'Data does not meet validation requirements' },
+    };
+
+    const mapped = errorMap[code];
+    if (mapped) {
+      return mapped;
+    }
+
+    this.logger.error(
+      `Database error: ${exception.message}`,
+      exception.stack,
+      `${request.method} ${request.url}`,
+    );
+    return { status: HttpStatus.INTERNAL_SERVER_ERROR, message: 'Database operation failed' };
   }
 }

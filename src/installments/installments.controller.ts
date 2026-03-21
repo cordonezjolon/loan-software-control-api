@@ -23,11 +23,13 @@ import {
 import { InstallmentsService } from './installments.service';
 import { LoanInstallment } from './entities/loan-installment.entity';
 import { FindInstallmentsDto } from './dto/find-installments.dto';
+import { InstallmentStatus } from './entities/loan-installment.entity';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '../auth/entities/user.entity';
 import { PaginatedResult } from '../shared/interfaces/paginated-result.interface';
+import { LoanPayment } from '../payments/entities/loan-payment.entity';
 
 @ApiTags('Installments')
 @ApiBearerAuth()
@@ -129,7 +131,7 @@ export class InstallmentsController {
       }
     }
   })
-  async getStatistics(@Query('loanId') loanId?: string) {
+  async getStatistics(@Query('loanId') loanId?: string): Promise<unknown> {
     return this.installmentsService.getInstallmentStatistics(loanId);
   }
 
@@ -152,6 +154,7 @@ export class InstallmentsController {
     return this.installmentsService.findByLoanId(loanId);
   }
 
+  // eslint-disable-next-line max-lines-per-function
   @Get('loan/:loanId/balance')
   @ApiOperation({ 
     summary: 'Get remaining balance for a loan',
@@ -185,12 +188,16 @@ export class InstallmentsController {
       }
     }
   })
-  async getRemainingBalance(@Param('loanId', ParseUUIDPipe) loanId: string) {
+  async getRemainingBalance(@Param('loanId', ParseUUIDPipe) loanId: string): Promise<{
+    remainingBalance: number;
+    principalBalance: number;
+    lateFeesBalance: number;
+  }> {
     const totalBalance = await this.installmentsService.calculateRemainingBalance(loanId);
     const installments = await this.installmentsService.findByLoanId(loanId);
     
     const lateFeesBalance = installments
-      .filter(i => i.status !== 'paid')
+      .filter(i => i.status !== InstallmentStatus.PAID)
       .reduce((total, installment) => total + Number(installment.lateFee), 0);
     
     const principalBalance = totalBalance - lateFeesBalance;
@@ -245,7 +252,7 @@ export class InstallmentsController {
       }
     }
   })
-  async getPaymentHistory(@Param('id', ParseUUIDPipe) id: string): Promise<any[]> {
+  async getPaymentHistory(@Param('id', ParseUUIDPipe) id: string): Promise<LoanPayment[]> {
     return this.installmentsService.getPaymentHistory(id);
   }
 
@@ -295,11 +302,12 @@ export class InstallmentsController {
   async applyLateFee(
     @Param('id', ParseUUIDPipe) id: string,
     @Body('amount') amount: number,
-    @Body('reason') reason?: string,
+    @Body('reason') _reason?: string,
   ): Promise<LoanInstallment> {
     return this.installmentsService.applyLateFees(id, amount);
   }
 
+  // eslint-disable-next-line max-lines-per-function
   @Patch('loan/:loanId/reschedule')
   @UseGuards(RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.LOAN_OFFICER)

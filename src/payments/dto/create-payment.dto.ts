@@ -15,7 +15,7 @@ export class CreatePaymentDto {
 
   @IsNumber()
   @Min(0.01, { message: 'Payment amount must be at least $0.01' })
-  @Transform(({ value }) => parseFloat(value))
+  @Transform(({ value }) => parseFloat(value as string))
   @ApiProperty({ 
     description: 'Payment amount',
     minimum: 0.01,

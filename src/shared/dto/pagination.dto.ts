@@ -13,7 +13,7 @@ export class PaginationDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  @Transform(({ value }) => parseInt(value) || 1)
+  @Transform(({ value }) => parseInt(value as string) || 1)
   page?: number = 1;
 
   @ApiPropertyOptional({
@@ -28,7 +28,7 @@ export class PaginationDto {
   @IsInt()
   @Min(1)
   @Max(100)
-  @Transform(({ value }) => parseInt(value) || 10)
+  @Transform(({ value }) => parseInt(value as string) || 10)
   limit?: number = 10;
 
   @ApiPropertyOptional({
@@ -45,6 +45,6 @@ export class PaginationDto {
     example: 'DESC',
   })
   @IsOptional()
-  @Transform(({ value }) => value?.toUpperCase())
+  @Transform(({ value }) => (value as string | undefined)?.toUpperCase() as 'ASC' | 'DESC')
   sortOrder?: 'ASC' | 'DESC' = 'DESC';
 }

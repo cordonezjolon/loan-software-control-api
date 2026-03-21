@@ -24,10 +24,10 @@ export class ResponseInterceptor<T>
     context: ExecutionContext,
     next: CallHandler,
   ): Observable<ApiResponse<T>> {
-    const request = context.switchToHttp().getRequest();
+    const request = context.switchToHttp().getRequest<{ url: string; method: string }>();
 
     return next.handle().pipe(
-      map(data => ({
+      map((data: T) => ({
         success: true,
         data,
         timestamp: new Date().toISOString(),

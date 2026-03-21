@@ -1,14 +1,17 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Between, LessThanOrEqual, MoreThanOrEqual } from 'typeorm';
+import { Repository, Between, LessThanOrEqual } from 'typeorm';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { LoanInstallment, InstallmentStatus } from './entities/loan-installment.entity';
 import { Loan, LoanStatus } from '../loans/entities/loan.entity';
+import { LoanPayment } from '../payments/entities/loan-payment.entity';
 import { FindInstallmentsDto } from './dto/find-installments.dto';
 import { PaginatedResult } from '../shared/interfaces/paginated-result.interface';
 
 @Injectable()
 export class InstallmentsService {
+  private readonly logger = new Logger(InstallmentsService.name);
+
   constructor(
     @InjectRepository(LoanInstallment)
     private readonly installmentRepository: Repository<LoanInstallment>,
@@ -19,6 +22,7 @@ export class InstallmentsService {
   /**
    * Find all installments with filtering and pagination
    */
+  // eslint-disable-next-line max-lines-per-function
   async findAll(findInstallmentsDto: FindInstallmentsDto): Promise<PaginatedResult<LoanInstallment>> {
     const {
       page = 1,
@@ -203,6 +207,7 @@ export class InstallmentsService {
   /**
    * Get installment statistics for reporting
    */
+  // eslint-disable-next-line max-lines-per-function
   async getInstallmentStatistics(loanId?: string): Promise<{
     totalInstallments: number;
     paidInstallments: number;
@@ -259,6 +264,7 @@ export class InstallmentsService {
           overdueCount++;
         } else {
           // Find next due date
+          // eslint-disable-next-line max-depth
           if (!nextDue || dueDate < nextDue) {
             nextDue = dueDate;
           }
@@ -352,7 +358,7 @@ export class InstallmentsService {
       });
     }
 
-    console.log(`Marked ${overdueInstallments.length} installments as overdue`);
+    this.logger.log(`Marked ${overdueInstallments.length} installments as overdue`);
   }
 
   /**
@@ -380,7 +386,7 @@ export class InstallmentsService {
       }
     }
 
-    console.log(`Processed late fees for overdue installments`);
+    this.logger.log(`Processed late fees for overdue installments`);
   }
 
   /**
@@ -399,7 +405,7 @@ export class InstallmentsService {
   /**
    * Get payment history for an installment
    */
-  async getPaymentHistory(installmentId: string): Promise<any[]> {
+  async getPaymentHistory(installmentId: string): Promise<LoanPayment[]> {
     const installment = await this.installmentRepository.findOne({
       where: { id: installmentId },
       relations: ['payments'],

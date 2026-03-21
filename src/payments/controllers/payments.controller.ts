@@ -10,14 +10,12 @@ import {
   UseGuards,
   HttpCode,
   HttpStatus,
-  ParseIntPipe,
-  Optional,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { PaymentsService } from '../services/payments.service';
 import { CreatePaymentDto } from '../dto/create-payment.dto';
-import { PaymentMethod, PaymentStatus } from '../entities/loan-payment.entity';
+import { LoanPayment, PaymentMethod, PaymentStatus } from '../entities/loan-payment.entity';
 
 @ApiTags('payments')
 @ApiBearerAuth()
@@ -28,7 +26,7 @@ export class PaymentsController {
 
   @Post()
   @ApiOperation({ summary: 'Register a payment for an installment' })
-  async create(@Body() dto: CreatePaymentDto) {
+  async create(@Body() dto: CreatePaymentDto): Promise<LoanPayment> {
     return this.paymentsService.create(dto);
   }
 
@@ -49,7 +47,7 @@ export class PaymentsController {
     @Query('clientId') clientId?: string,
     @Query('status') status?: PaymentStatus,
     @Query('paymentMethod') paymentMethod?: PaymentMethod,
-  ) {
+  ): Promise<unknown> {
     return this.paymentsService.findAll({
       page: page ? Number(page) : undefined,
       limit: limit ? Number(limit) : undefined,
@@ -63,7 +61,7 @@ export class PaymentsController {
 
   @Get(':id')
   @ApiOperation({ summary: 'Get a payment by ID' })
-  async findOne(@Param('id', ParseUUIDPipe) id: string) {
+  async findOne(@Param('id', ParseUUIDPipe) id: string): Promise<LoanPayment> {
     return this.paymentsService.findOne(id);
   }
 
@@ -73,7 +71,7 @@ export class PaymentsController {
   async cancel(
     @Param('id', ParseUUIDPipe) id: string,
     @Body('reason') reason?: string,
-  ) {
+  ): Promise<LoanPayment> {
     return this.paymentsService.cancel(id, reason);
   }
 }

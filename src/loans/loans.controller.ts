@@ -33,6 +33,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '../auth/entities/user.entity';
 import { GetUser } from '../auth/decorators/get-user.decorator';
 import { PaginatedResult } from '../shared/interfaces/paginated-result.interface';
+import { InstallmentStatus } from '../installments/entities/loan-installment.entity';
 
 @ApiTags('Loans')
 @ApiBearerAuth()
@@ -64,7 +65,7 @@ export class LoansController {
   })
   async create(
     @Body() createLoanDto: CreateLoanDto,
-    @GetUser() currentUser: any,
+    @GetUser() currentUser: { id: string; role: UserRole },
   ): Promise<Loan> {
     // If no loan officer specified, assign the current user (if they're a loan officer)
     if (!createLoanDto.loanOfficerId && currentUser.role === UserRole.LOAN_OFFICER) {
@@ -135,7 +136,7 @@ export class LoansController {
       }
     }
   })
-  async getStatistics(@Query('loanOfficerId') loanOfficerId?: string) {
+  async getStatistics(@Query('loanOfficerId') loanOfficerId?: string): Promise<unknown> {
     return this.loansService.getLoanStatistics(loanOfficerId);
   }
 
@@ -158,6 +159,7 @@ export class LoansController {
     return this.loansService.findOne(id);
   }
 
+  // eslint-disable-next-line max-lines-per-function
   @Get(':id/balance')
   @ApiOperation({ 
     summary: 'Get current loan balance',
@@ -207,7 +209,7 @@ export class LoansController {
     
     // Calculate remaining payments (simplified)
     const totalPayments = loan.termInMonths;
-    const paidInstallments = loan.installments?.filter(i => i.status === 'paid').length || 0;
+    const paidInstallments = loan.installments?.filter(i => i.status === InstallmentStatus.PAID).length || 0;
     const remainingPayments = totalPayments - paidInstallments;
     
     return {
@@ -270,7 +272,7 @@ export class LoansController {
   })
   async approveLoan(
     @Param('id', ParseUUIDPipe) id: string,
-    @GetUser() currentUser: any,
+    @GetUser() currentUser: { id: string; role: UserRole },
   ): Promise<Loan> {
     return this.loansService.approveLoan(id, currentUser.id);
   }
@@ -392,7 +394,7 @@ export class LoanCalculationsController {
     status: 400,
     description: 'Invalid calculation parameters',
   })
-  async calculateLoan(@Body() calculationDto: LoanCalculationDto): Promise<LoanCalculationResultDto> {
+  calculateLoan(@Body() calculationDto: LoanCalculationDto): LoanCalculationResultDto {
     return this.loansService.calculateLoanMetrics(calculationDto);
   }
 
@@ -446,8 +448,8 @@ export class LoanCalculationsController {
       }
     }
   })
-  async previewPaymentSchedule(@Query() query: LoanCalculationDto) {
-    const result = await this.loansService.calculateLoanMetrics(query);
+  previewPaymentSchedule(@Query() query: LoanCalculationDto): unknown {
+    const result = this.loansService.calculateLoanMetrics(query);
     
     return {
       monthlyPayment: result.monthlyPayment,

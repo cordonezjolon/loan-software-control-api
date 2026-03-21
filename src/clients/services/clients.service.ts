@@ -7,6 +7,7 @@ import { CreateClientDto } from '../dto/create-client.dto';
 import { UpdateClientDto } from '../dto/update-client.dto';
 import { FindClientsDto, ClientSortBy, SortOrder } from '../dto/find-clients.dto';
 import { RiskProfile } from '@/shared/services/loan-calculation.service';
+import { LoanStatus } from '../../loans/entities/loan.entity';
 
 @Injectable()
 export class ClientsService {
@@ -35,6 +36,7 @@ export class ClientsService {
     return savedClient;
   }
 
+  // eslint-disable-next-line max-lines-per-function
   async findAll(query: FindClientsDto): Promise<{ data: Client[]; total: number; page: number; totalPages: number }> {
     const { 
       page = 1, 
@@ -140,7 +142,7 @@ export class ClientsService {
     // Check if client has active loans
     if (client.loans && client.loans.length > 0) {
       const hasActiveLoans = client.loans.some(loan => 
-        loan.status === 'active' || loan.status === 'approved'
+        loan.status === LoanStatus.ACTIVE || loan.status === LoanStatus.APPROVED
       );
       if (hasActiveLoans) {
         throw new ConflictException('Cannot delete client with active loans');
@@ -175,20 +177,20 @@ export class ClientsService {
       .createQueryBuilder('client')
       .select('AVG(client.creditScore)', 'average')
       .where('client.creditScore IS NOT NULL')
-      .getRawOne();
+      .getRawOne<{ average: string | null }>();
 
     // Average monthly income
     const incomeResult = await this.clientRepository
       .createQueryBuilder('client')
       .select('AVG(client.monthlyIncome)', 'average')
       .where('client.monthlyIncome IS NOT NULL')
-      .getRawOne();
+      .getRawOne<{ average: string | null }>();
 
     return {
       totalClients,
       newClientsThisMonth,
-      averageCreditScore: Math.round(creditScoreResult?.average || 0),
-      averageMonthlyIncome: Math.round(incomeResult?.average || 0),
+      averageCreditScore: Math.round(Number(creditScoreResult?.average ?? 0)),
+      averageMonthlyIncome: Math.round(Number(incomeResult?.average ?? 0)),
     };
   }
 
@@ -237,6 +239,7 @@ export class ClientsService {
   /**
    * Check loan eligibility for a client
    */
+  // eslint-disable-next-line max-lines-per-function, complexity
   async checkLoanEligibility(clientId: string): Promise<{
     isEligible: boolean;
     reason?: string;
@@ -270,7 +273,7 @@ export class ClientsService {
 
     // Check for existing loans (if applicable)
     const existingActiveLoans = client.loans?.filter(loan => 
-      loan.status === 'active' || loan.status === 'approved'
+      loan.status === LoanStatus.ACTIVE || loan.status === LoanStatus.APPROVED
     ) || [];
 
     if (existingActiveLoans.length >= 3) {

@@ -218,6 +218,7 @@ export class NotificationsController {
     return { message: 'Loan approval notification sent successfully' };
   }
 
+  // eslint-disable-next-line max-lines-per-function, @typescript-eslint/require-await
   @Get('stats/summary')
   @ApiOperation({ summary: 'Get notification statistics summary' })
   @ApiResponse({

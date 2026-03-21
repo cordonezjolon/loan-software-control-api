@@ -54,60 +54,45 @@ export class InterestRateService {
   /**
    * Calculate risk-based adjustment to interest rate
    */
-  async calculateRiskAdjustment(riskProfile: RiskProfile): Promise<RateBreakdown> {
-    let creditScoreAdjustment = 0;
-    let debtToIncomeAdjustment = 0;
-    let employmentAdjustment = 0;
-
-    // Credit score impact (higher score = lower rate)
-    if (riskProfile.creditScore >= 800) {
-      creditScoreAdjustment = -0.005; // 0.5% discount
-    } else if (riskProfile.creditScore >= 750) {
-      creditScoreAdjustment = 0; // No adjustment
-    } else if (riskProfile.creditScore >= 700) {
-      creditScoreAdjustment = 0.005; // 0.5% increase
-    } else if (riskProfile.creditScore >= 650) {
-      creditScoreAdjustment = 0.01; // 1% increase
-    } else if (riskProfile.creditScore >= 600) {
-      creditScoreAdjustment = 0.02; // 2% increase
-    } else {
-      creditScoreAdjustment = 0.03; // 3% increase
-    }
-
-    // Debt-to-income ratio impact
-    if (riskProfile.debtToIncomeRatio <= 0.2) {
-      debtToIncomeAdjustment = -0.0025; // 0.25% discount
-    } else if (riskProfile.debtToIncomeRatio <= 0.3) {
-      debtToIncomeAdjustment = 0; // No adjustment
-    } else if (riskProfile.debtToIncomeRatio <= 0.4) {
-      debtToIncomeAdjustment = 0.005; // 0.5% increase
-    } else if (riskProfile.debtToIncomeRatio <= 0.5) {
-      debtToIncomeAdjustment = 0.015; // 1.5% increase
-    } else {
-      debtToIncomeAdjustment = 0.025; // 2.5% increase
-    }
-
-    // Employment history impact
-    if (riskProfile.employmentYears >= 5) {
-      employmentAdjustment = -0.0025; // 0.25% discount
-    } else if (riskProfile.employmentYears >= 2) {
-      employmentAdjustment = 0; // No adjustment
-    } else if (riskProfile.employmentYears >= 1) {
-      employmentAdjustment = 0.005; // 0.5% increase
-    } else {
-      employmentAdjustment = 0.01; // 1% increase
-    }
+  calculateRiskAdjustment(riskProfile: RiskProfile): RateBreakdown {
+    const creditScoreAdjustment = this.getCreditScoreAdjustment(riskProfile.creditScore);
+    const debtToIncomeAdjustment = this.getDebtToIncomeAdjustment(riskProfile.debtToIncomeRatio);
+    const employmentAdjustment = this.getEmploymentAdjustment(riskProfile.employmentYears);
 
     const totalRiskAdjustment = creditScoreAdjustment + debtToIncomeAdjustment + employmentAdjustment;
 
     return {
-      baseRate: 0, // Will be filled by caller
+      baseRate: 0,
       riskAdjustment: Math.round(totalRiskAdjustment * 10000) / 10000,
       creditScoreAdjustment,
       debtToIncomeAdjustment,
       employmentAdjustment,
-      finalRate: 0, // Will be calculated by caller
+      finalRate: 0,
     };
+  }
+
+  private getCreditScoreAdjustment(creditScore: number): number {
+    if (creditScore >= 800) return -0.005;
+    if (creditScore >= 750) return 0;
+    if (creditScore >= 700) return 0.005;
+    if (creditScore >= 650) return 0.01;
+    if (creditScore >= 600) return 0.02;
+    return 0.03;
+  }
+
+  private getDebtToIncomeAdjustment(ratio: number): number {
+    if (ratio <= 0.2) return -0.0025;
+    if (ratio <= 0.3) return 0;
+    if (ratio <= 0.4) return 0.005;
+    if (ratio <= 0.5) return 0.015;
+    return 0.025;
+  }
+
+  private getEmploymentAdjustment(years: number): number {
+    if (years >= 5) return -0.0025;
+    if (years >= 2) return 0;
+    if (years >= 1) return 0.005;
+    return 0.01;
   }
 
   /**
@@ -120,7 +105,7 @@ export class InterestRateService {
       return baseRate;
     }
 
-    const rateBreakdown = await this.calculateRiskAdjustment(riskProfile);
+    const rateBreakdown = this.calculateRiskAdjustment(riskProfile);
     const finalRate = baseRate + rateBreakdown.riskAdjustment;
 
     // Cap the final rate between 0.01% and 50%
@@ -132,7 +117,7 @@ export class InterestRateService {
    */
   async estimateRateWithBreakdown(loanType: LoanType, riskProfile: RiskProfile): Promise<RateBreakdown> {
     const baseRate = await this.getBaseRate(loanType);
-    const rateBreakdown = await this.calculateRiskAdjustment(riskProfile);
+    const rateBreakdown = this.calculateRiskAdjustment(riskProfile);
     
     rateBreakdown.baseRate = baseRate;
     rateBreakdown.finalRate = Math.max(0.0001, Math.min(0.50, baseRate + rateBreakdown.riskAdjustment));

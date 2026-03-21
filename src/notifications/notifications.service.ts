@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Between, In } from 'typeorm';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { Repository, Between } from 'typeorm';
+import { Cron } from '@nestjs/schedule';
 import { Notification, NotificationStatus } from './entities/notification.entity';
 import { CreateNotificationDto, BulkNotificationDto } from './dto/create-notification.dto';
 import { FindNotificationsDto } from './dto/find-notifications.dto';
@@ -88,6 +88,7 @@ export class NotificationsService {
   /**
    * Find all notifications with filtering and pagination
    */
+  // eslint-disable-next-line max-lines-per-function
   async findAll(findNotificationsDto: FindNotificationsDto): Promise<PaginatedResult<Notification>> {
     const {
       page = 1,
@@ -277,7 +278,7 @@ export class NotificationsService {
   /**
    * Replace variables in message template
    */
-  private replaceMessageVariables(template: string, variables: Record<string, any>): string {
+  private replaceMessageVariables(template: string, variables: Record<string, unknown>): string {
     let message = template;
     
     for (const [key, value] of Object.entries(variables)) {
@@ -306,7 +307,7 @@ export class NotificationsService {
     } catch (error) {
       await this.notificationRepository.update(notificationId, {
         status: NotificationStatus.FAILED,
-        errorMessage: error.message,
+        errorMessage: error instanceof Error ? error.message : String(error),
         retryCount: notification.retryCount + 1,
       });
       throw error;

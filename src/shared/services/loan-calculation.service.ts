@@ -1,5 +1,4 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { LoanType } from '@/loans/entities/loan.entity';
 
 export interface AmortizationEntry {
   installmentNumber: number;
@@ -205,39 +204,16 @@ export class LoanCalculationService {
     totalExtraPayments: number;
     netSavings: number;
   } {
-    const monthlyRate = interestRate / 12;
-    let balance = currentBalance - lumpSumPayment; // Apply lump sum immediately
-    const totalMonthlyPayment = monthlyPayment + extraMonthlyPayment;
-    
-    let months = 0;
-    let totalInterestPaid = 0;
-    let totalExtraPayments = lumpSumPayment;
-    const maxMonths = 600; // Safety limit
+    const { months, totalInterestPaid, totalExtraPayments } =
+      this.buildPayoffSchedule(currentBalance, interestRate, monthlyPayment, extraMonthlyPayment, lumpSumPayment);
 
-    // Calculate with extra payments
-    while (balance > 0 && months < maxMonths) {
-      const interestPayment = balance * monthlyRate;
-      const principalPayment = Math.min(totalMonthlyPayment - interestPayment, balance);
-      
-      balance -= principalPayment;
-      totalInterestPaid += interestPayment;
-      totalExtraPayments += extraMonthlyPayment;
-      months++;
+    const originalInterestFromNow = this.calcOriginalInterest(
+      currentBalance, interestRate, monthlyPayment, originalPayoffDate
+    );
 
-      if (balance <= 0.01) break; // Small tolerance for floating point errors
-    }
-
-    // Calculate what interest would have been without extra payments
-    const remainingMonthsFromOriginal = Math.ceil((originalPayoffDate.getTime() - new Date().getTime()) / (30 * 24 * 60 * 60 * 1000));
-    let originalInterestFromNow = 0;
-    let tempBalance = currentBalance;
-    
-    for (let i = 0; i < remainingMonthsFromOriginal && tempBalance > 0; i++) {
-      const interestPayment = tempBalance * monthlyRate;
-      const principalPayment = monthlyPayment - interestPayment;
-      originalInterestFromNow += interestPayment;
-      tempBalance -= principalPayment;
-    }
+    const remainingMonthsFromOriginal = Math.ceil(
+      (originalPayoffDate.getTime() - new Date().getTime()) / (30 * 24 * 60 * 60 * 1000)
+    );
 
     const newPayoffDate = new Date();
     newPayoffDate.setMonth(newPayoffDate.getMonth() + months);
@@ -255,4 +231,52 @@ export class LoanCalculationService {
       netSavings: Math.round(netSavings * 100) / 100,
     };
   }
-}
+
+  private buildPayoffSchedule(
+    currentBalance: number,
+    interestRate: number,
+    monthlyPayment: number,
+    extraMonthlyPayment: number,
+    lumpSumPayment: number,
+  ): { months: number; totalInterestPaid: number; totalExtraPayments: number } {
+    const monthlyRate = interestRate / 12;
+    let balance = currentBalance - lumpSumPayment;
+    const totalMonthlyPayment = monthlyPayment + extraMonthlyPayment;
+    let months = 0;
+    let totalInterestPaid = 0;
+    let totalExtraPayments = lumpSumPayment;
+    const maxMonths = 600;
+
+    while (balance > 0 && months < maxMonths) {
+      const interestPayment = balance * monthlyRate;
+      const principalPayment = Math.min(totalMonthlyPayment - interestPayment, balance);
+      balance -= principalPayment;
+      totalInterestPaid += interestPayment;
+      totalExtraPayments += extraMonthlyPayment;
+      months++;
+      if (balance <= 0.01) break;
+    }
+
+    return { months, totalInterestPaid, totalExtraPayments };
+  }
+
+  private calcOriginalInterest(
+    currentBalance: number,
+    interestRate: number,
+    monthlyPayment: number,
+    originalPayoffDate: Date,
+  ): number {
+    const monthlyRate = interestRate / 12;
+    const remainingMonths = Math.ceil(
+      (originalPayoffDate.getTime() - new Date().getTime()) / (30 * 24 * 60 * 60 * 1000)
+    );
+    let originalInterest = 0;
+    let tempBalance = currentBalance;
+    for (let i = 0; i < remainingMonths && tempBalance > 0; i++) {
+      const interestPayment = tempBalance * monthlyRate;
+      const principalPayment = monthlyPayment - interestPayment;
+      originalInterest += interestPayment;
+      tempBalance -= principalPayment;
+    }
+    return originalInterest;
+  }}

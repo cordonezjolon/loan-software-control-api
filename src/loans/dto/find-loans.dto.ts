@@ -1,4 +1,4 @@
-import { IsOptional, IsEnum, IsUUID, IsDateString, IsNumber, Min, Max } from 'class-validator';
+import { IsOptional, IsEnum, IsUUID, IsDateString, IsNumber, Min } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import { LoanStatus, LoanType, LoanPurpose } from '../entities/loan.entity';
@@ -64,7 +64,7 @@ export class FindLoansDto extends PaginationDto {
   @IsOptional()
   @IsNumber()
   @Min(0)
-  @Transform(({ value }) => value ? parseFloat(value) : undefined)
+  @Transform(({ value }) => value ? parseFloat(value as string) : undefined)
   @ApiPropertyOptional({ 
     description: 'Minimum loan amount',
     minimum: 0,
@@ -77,7 +77,7 @@ export class FindLoansDto extends PaginationDto {
   @IsOptional()
   @IsNumber()
   @Min(0)
-  @Transform(({ value }) => value ? parseFloat(value) : undefined)
+  @Transform(({ value }) => value ? parseFloat(value as string) : undefined)
   @ApiPropertyOptional({ 
     description: 'Maximum loan amount',
     minimum: 0,

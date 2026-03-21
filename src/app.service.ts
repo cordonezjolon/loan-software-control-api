@@ -31,8 +31,8 @@ export class AppService {
         database: {
           status: 'connected',
           type: 'postgresql',
-          host: this.configService.get('DB_HOST'),
-          database: this.configService.get('DB_NAME'),
+          host: this.configService.get<string>('DB_HOST'),
+          database: this.configService.get<string>('DB_NAME'),
         },
         memory: {
           used: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),

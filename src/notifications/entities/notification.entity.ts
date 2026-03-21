@@ -56,7 +56,7 @@ export class Notification {
     installmentId?: string;
     paymentId?: string;
     templateId?: string;
-    variables?: Record<string, any>;
+    variables?: Record<string, unknown>;
   };
 
   @Column({ type: 'enum', enum: NotificationStatus, default: NotificationStatus.PENDING })

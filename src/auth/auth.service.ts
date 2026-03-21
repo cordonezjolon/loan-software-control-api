@@ -1,6 +1,5 @@
 import {
   Injectable,
-  UnauthorizedException,
   ConflictException,
   Logger,
 } from '@nestjs/common';
@@ -24,17 +23,17 @@ export class AuthService {
     private readonly jwtService: JwtService,
   ) {}
 
-  async validateUser(username: string, password: string): Promise<any> {
+  async validateUser(username: string, password: string): Promise<Omit<User, 'passwordHash'> | null> {
     const user = await this.userRepository.findOne({ where: { username } });
     
     if (user && await bcrypt.compare(password, user.passwordHash)) {
-      const { passwordHash, ...result } = user;
+      const { passwordHash: _passwordHash, ...result } = user;
       return result;
     }
     return null;
   }
 
-  async login(user: any): Promise<JwtAuthResponse> {
+  login(user: Omit<User, 'passwordHash'>): JwtAuthResponse {
     const payload: JwtPayload = {
       username: user.username,
       sub: user.id,
@@ -74,26 +73,26 @@ export class AuthService {
     });
 
     const savedUser = await this.userRepository.save(user);
-    const { passwordHash, ...userWithoutPassword } = savedUser;
+    const { passwordHash: _passwordHash, ...userWithoutPassword } = savedUser;
 
     this.logger.log(`New user registered: ${savedUser.username}`);
 
     return this.login(userWithoutPassword);
   }
 
-  async validateToken(token: string): Promise<{ valid: boolean; user?: any }> {
+  async validateToken(token: string): Promise<{ valid: boolean; user?: Omit<User, 'passwordHash'> }> {
     try {
-      const decoded = this.jwtService.verify(token) as JwtPayload;
+      const decoded = this.jwtService.verify<{ sub: string }>(token);
       const user = await this.userRepository.findOne({ where: { id: decoded.sub } });
       
       if (!user) {
         return { valid: false };
       }
 
-      const { passwordHash, ...userWithoutPassword } = user;
+      const { passwordHash: _passwordHash2, ...userWithoutPassword } = user;
       return { valid: true, user: userWithoutPassword };
     } catch (error) {
-      this.logger.warn(`Invalid token validation attempt: ${error.message}`);
+      this.logger.warn(`Invalid token validation attempt: ${error instanceof Error ? error.message : String(error)}`);
       return { valid: false };
     }
   }

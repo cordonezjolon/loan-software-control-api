@@ -14,8 +14,10 @@ export class ValidationPipe implements PipeTransform<unknown> {
       return value;
     }
 
-    const object = plainToClass(metatype, value);
-    const errors = await validate(object);
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+    const object = plainToClass(metatype, value as object);
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+    const errors = await validate(object as object);
 
     if (errors.length > 0) {
       const errorMessages = errors.map(error => {
@@ -30,7 +32,8 @@ export class ValidationPipe implements PipeTransform<unknown> {
       });
     }
 
-    return object;
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+    return object as unknown;
   }
 
   private toValidate(metatype: new (...args: unknown[]) => unknown): boolean {

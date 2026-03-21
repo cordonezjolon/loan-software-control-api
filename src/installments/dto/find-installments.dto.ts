@@ -55,7 +55,7 @@ export class FindInstallmentsDto extends PaginationDto {
   @IsOptional()
   @IsNumber()
   @Min(0)
-  @Transform(({ value }) => value ? parseFloat(value) : undefined)
+  @Transform(({ value }) => value ? parseFloat(value as string) : undefined)
   @ApiPropertyOptional({ 
     description: 'Filter installments with overdue days greater than this',
     minimum: 0,

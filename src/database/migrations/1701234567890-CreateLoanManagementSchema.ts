@@ -3,6 +3,7 @@ import { MigrationInterface, QueryRunner } from "typeorm";
 export class CreateLoanManagementSchema1701234567890 implements MigrationInterface {
     name = 'CreateLoanManagementSchema1701234567890'
 
+    // eslint-disable-next-line max-lines-per-function
     public async up(queryRunner: QueryRunner): Promise<void> {
         // Create ENUM types first
         await queryRunner.query(`

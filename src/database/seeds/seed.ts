@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 import AppDataSource from '../data-source';
 import * as bcrypt from 'bcrypt';
 

@@ -63,7 +63,7 @@ export class CreateNotificationDto {
       dueDate: '2024-01-15'
     }
   })
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export class BulkNotificationDto {
@@ -124,5 +124,5 @@ export class BulkNotificationDto {
       '123e4567-e89b-12d3-a456-426614174001': { clientName: 'Jane Smith' }
     }
   })
-  recipientVariables?: Record<string, Record<string, any>>;
+  recipientVariables?: Record<string, Record<string, unknown>>;
 }

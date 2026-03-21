@@ -16,7 +16,7 @@ export class CreateLoanDto {
   @IsNumber()
   @Min(1000, { message: 'Loan amount must be at least $1,000' })
   @Max(5000000, { message: 'Loan amount cannot exceed $5,000,000' })
-  @Transform(({ value }) => parseFloat(value))
+  @Transform(({ value }) => parseFloat(value as string))
   @ApiProperty({ 
     description: 'Principal loan amount in USD',
     minimum: 1000,
@@ -30,7 +30,7 @@ export class CreateLoanDto {
   @IsNumber()
   @Min(0.01, { message: 'Interest rate must be at least 1%' })
   @Max(0.35, { message: 'Interest rate cannot exceed 35%' })
-  @Transform(({ value }) => parseFloat(value))
+  @Transform(({ value }) => parseFloat(value as string))
   @ApiProperty({ 
     description: 'Annual interest rate as decimal (e.g., 0.05 for 5%)',
     minimum: 0.01,
@@ -44,7 +44,7 @@ export class CreateLoanDto {
   @IsInt()
   @Min(6, { message: 'Loan term must be at least 6 months' })
   @Max(480, { message: 'Loan term cannot exceed 40 years (480 months)' })
-  @Transform(({ value }) => parseInt(value))
+  @Transform(({ value }) => parseInt(value as string))
   @ApiProperty({ 
     description: 'Loan term in months',
     minimum: 6,
@@ -83,7 +83,7 @@ export class CreateLoanDto {
   @IsNumber()
   @Min(0, { message: 'Risk adjustment cannot be negative' })
   @Max(0.10, { message: 'Risk adjustment cannot exceed 10%' })
-  @Transform(({ value }) => value ? parseFloat(value) : undefined)
+  @Transform(({ value }) => value ? parseFloat(value as string) : undefined)
   @ApiPropertyOptional({ 
     description: 'Additional risk-based interest rate adjustment',
     minimum: 0,
@@ -97,7 +97,7 @@ export class CreateLoanDto {
   @IsOptional()
   @IsNumber()
   @Min(0, { message: 'Down payment cannot be negative' })
-  @Transform(({ value }) => value ? parseFloat(value) : undefined)
+  @Transform(({ value }) => value ? parseFloat(value as string) : undefined)
   @ApiPropertyOptional({ 
     description: 'Down payment amount (for secured loans)',
     minimum: 0,

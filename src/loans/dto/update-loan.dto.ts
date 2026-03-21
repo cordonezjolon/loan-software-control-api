@@ -8,7 +8,7 @@ export class UpdateLoanDto {
   @IsNumber()
   @Min(0.01)
   @Max(0.35)
-  @Transform(({ value }) => value ? parseFloat(value) : undefined)
+  @Transform(({ value }) => value ? parseFloat(value as string) : undefined)
   @ApiPropertyOptional({ 
     description: 'Updated annual interest rate as decimal',
     minimum: 0.01,
@@ -60,7 +60,7 @@ export class UpdateLoanDto {
   @IsNumber()
   @Min(0)
   @Max(0.10)
-  @Transform(({ value }) => value ? parseFloat(value) : undefined)
+  @Transform(({ value }) => value ? parseFloat(value as string) : undefined)
   @ApiPropertyOptional({ 
     description: 'Updated risk adjustment factor',
     minimum: 0,
@@ -74,7 +74,7 @@ export class UpdateLoanDto {
   @IsOptional()
   @IsNumber()
   @Min(0)
-  @Transform(({ value }) => value ? parseFloat(value) : undefined)
+  @Transform(({ value }) => value ? parseFloat(value as string) : undefined)
   @ApiPropertyOptional({ 
     description: 'Updated down payment amount',
     minimum: 0,

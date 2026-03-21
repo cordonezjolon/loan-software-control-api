@@ -73,7 +73,7 @@ export class FindPaymentsDto extends PaginationDto {
   @IsOptional()
   @IsNumber()
   @Min(0)
-  @Transform(({ value }) => value ? parseFloat(value) : undefined)
+  @Transform(({ value }) => value ? parseFloat(value as string) : undefined)
   @ApiPropertyOptional({ 
     description: 'Minimum payment amount',
     minimum: 0,
@@ -86,7 +86,7 @@ export class FindPaymentsDto extends PaginationDto {
   @IsOptional()
   @IsNumber()
   @Min(0)
-  @Transform(({ value }) => value ? parseFloat(value) : undefined)
+  @Transform(({ value }) => value ? parseFloat(value as string) : undefined)
   @ApiPropertyOptional({ 
     description: 'Maximum payment amount',
     minimum: 0,

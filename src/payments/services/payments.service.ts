@@ -1,8 +1,8 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { ApiProperty } from '@nestjs/swagger';
 import { LoanPayment, PaymentMethod, PaymentStatus } from '../entities/loan-payment.entity';
+import { InstallmentStatus } from '../../installments/entities/loan-installment.entity';
 import { InstallmentsService } from '../../installments/installments.service';
 import { CreatePaymentDto } from '../dto/create-payment.dto';
 import { PaginatedResult } from '../../shared/interfaces/paginated-result.interface';
@@ -28,7 +28,7 @@ export class PaymentsService {
   async create(dto: CreatePaymentDto): Promise<LoanPayment> {
     const installment = await this.installmentsService.findOne(dto.installmentId);
 
-    if (installment.status === 'paid') {
+    if (installment.status === InstallmentStatus.PAID) {
       throw new BadRequestException('Installment is already fully paid');
     }
 

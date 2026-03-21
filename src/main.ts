@@ -10,6 +10,7 @@ import { AppModule } from './app.module';
 import { DatabaseExceptionFilter } from '@/shared/filters/database-exception.filter';
 import { ResponseInterceptor } from '@/shared/interceptors/response.interceptor';
 
+// eslint-disable-next-line max-lines-per-function
 async function bootstrap(): Promise<void> {
   const logger = WinstonModule.createLogger({
     transports: [
@@ -125,6 +126,7 @@ async function bootstrap(): Promise<void> {
 }
 
 bootstrap().catch(error => {
+  // eslint-disable-next-line no-console
   console.error('Error starting application:', error);
   process.exit(1);
 });

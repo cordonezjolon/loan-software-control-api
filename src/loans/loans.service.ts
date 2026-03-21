@@ -1,7 +1,7 @@
-import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, FindManyOptions, Between, MoreThanOrEqual, LessThanOrEqual } from 'typeorm';
-import { Loan, LoanStatus, LoanType, LoanPurpose } from './entities/loan.entity';
+import { Repository } from 'typeorm';
+import { Loan, LoanStatus, LoanType } from './entities/loan.entity';
 import { CreateLoanDto } from './dto/create-loan.dto';
 import { UpdateLoanDto } from './dto/update-loan.dto';
 import { FindLoansDto } from './dto/find-loans.dto';
@@ -10,6 +10,7 @@ import { LoanCalculationService } from '../shared/services/loan-calculation.serv
 import { InterestRateService } from '../shared/services/interest-rate.service';
 import { ClientsService } from '../clients/services/clients.service';
 import { PaginatedResult } from '../shared/interfaces/paginated-result.interface';
+import { Client } from '../clients/entities/client.entity';
 import { LoanInstallment } from '../installments/entities/loan-installment.entity';
 import { InstallmentStatus } from '../installments/entities/loan-installment.entity';
 
@@ -28,6 +29,7 @@ export class LoansService {
   /**
    * Create a new loan application with calculated values
    */
+  // eslint-disable-next-line max-lines-per-function
   async create(createLoanDto: CreateLoanDto): Promise<Loan> {
     // Validate client exists and check eligibility
     const client = await this.clientsService.findOne(createLoanDto.clientId);
@@ -45,7 +47,7 @@ export class LoansService {
     const optimizedRate = await this.calculateOptimizedInterestRate(createLoanDto, client);
 
     // Calculate all loan metrics
-    const calculationResult = await this.calculateLoanMetrics({
+    const calculationResult = this.calculateLoanMetrics({
       principal: createLoanDto.principal,
       interestRate: optimizedRate,
       termInMonths: createLoanDto.termInMonths,
@@ -88,6 +90,7 @@ export class LoansService {
   /**
    * Find all loans with filtering and pagination
    */
+  // eslint-disable-next-line max-lines-per-function, complexity
   async findAll(findLoansDto: FindLoansDto): Promise<PaginatedResult<Loan>> {
     const {
       page = 1,
@@ -205,26 +208,11 @@ export class LoansService {
 
     // If interest rate is being updated, recalculate loan metrics
     if (updateLoanDto.interestRate && updateLoanDto.interestRate !== loan.interestRate) {
-      const newCalculations = await this.calculateLoanMetrics({
-        principal: loan.principal,
-        interestRate: updateLoanDto.interestRate,
-        termInMonths: loan.termInMonths,
-        loanType: loan.loanType,
-        downPayment: loan.downPayment,
-      });
-
-      // Update calculated values
-      updateLoanDto = {
-        ...updateLoanDto,
-        // Note: In a real system, you might want to version these changes
-      };
-
-      // If loan is active, you might need to regenerate the payment schedule
+      // If loan is active, we cannot change the interest rate
       if (loan.status === LoanStatus.ACTIVE) {
-        // This would require careful handling of existing payments
-        // For now, we'll throw an error
         throw new BadRequestException('Cannot change interest rate on an active loan');
       }
+      // Note: In a real system, recalculate and persist updated loan metrics here
     }
 
     // Update loan
@@ -303,15 +291,16 @@ export class LoansService {
   /**
    * Calculate loan metrics without creating a loan
    */
-  async calculateLoanMetrics(calculationDto: LoanCalculationDto): Promise<LoanCalculationResultDto> {
+  // eslint-disable-next-line max-lines-per-function
+  calculateLoanMetrics(calculationDto: LoanCalculationDto): LoanCalculationResultDto {
     const {
       principal,
       interestRate,
       termInMonths,
-      loanType,
+      loanType: _loanType,
       downPayment = 0,
       riskAdjustment = 0,
-      extraPayment = 0,
+      extraPayment: _extraPayment = 0,
     } = calculationDto;
 
     // Apply risk adjustment
@@ -424,6 +413,7 @@ export class LoansService {
   /**
    * Get loan statistics for reporting
    */
+  // eslint-disable-next-line max-lines-per-function
   async getLoanStatistics(loanOfficerId?: string): Promise<{
     totalLoans: number;
     totalPrincipal: number;
@@ -508,7 +498,7 @@ export class LoansService {
   /**
    * Calculate optimized interest rate based on client data and loan details
    */
-  private async calculateOptimizedInterestRate(createLoanDto: CreateLoanDto, client: any): Promise<number> {
+  private async calculateOptimizedInterestRate(createLoanDto: CreateLoanDto, client: Client): Promise<number> {
     // Get base rate for loan type
     let baseRate = createLoanDto.interestRate;
 
@@ -519,13 +509,13 @@ export class LoansService {
 
     // Calculate risk adjustment based on client profile
     const riskProfile = {
-      creditScore: client.creditScore || 700, // Default if not available
+      creditScore: client.creditScore ?? 700,
       debtToIncomeRatio: 0.3, // This would be calculated from client data
       employmentYears: 5, // This would come from client data
       monthlyIncome: 5000, // This would come from client data
     };
 
-    const riskAdjustmentData = await this.interestRateService.calculateRiskAdjustment(riskProfile);
+    const riskAdjustmentData = this.interestRateService.calculateRiskAdjustment(riskProfile);
 
     // Apply any manual risk adjustment
     const manualAdjustment = createLoanDto.riskAdjustment || 0;

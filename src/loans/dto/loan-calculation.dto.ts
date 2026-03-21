@@ -7,7 +7,7 @@ export class LoanCalculationDto {
   @IsNumber()
   @Min(1000, { message: 'Principal amount must be at least $1,000' })
   @Max(10000000, { message: 'Principal amount cannot exceed $10,000,000' })
-  @Transform(({ value }) => parseFloat(value))
+  @Transform(({ value }) => parseFloat(value as string))
   @ApiProperty({ 
     description: 'Principal loan amount for calculation',
     minimum: 1000,
@@ -21,7 +21,7 @@ export class LoanCalculationDto {
   @IsNumber()
   @Min(0.001, { message: 'Interest rate must be positive' })
   @Max(0.50, { message: 'Interest rate cannot exceed 50%' })
-  @Transform(({ value }) => parseFloat(value))
+  @Transform(({ value }) => parseFloat(value as string))
   @ApiProperty({ 
     description: 'Annual interest rate as decimal (e.g., 0.05 for 5%)',
     minimum: 0.001,
@@ -35,7 +35,7 @@ export class LoanCalculationDto {
   @IsInt()
   @Min(1, { message: 'Term must be at least 1 month' })
   @Max(480, { message: 'Term cannot exceed 40 years (480 months)' })
-  @Transform(({ value }) => parseInt(value))
+  @Transform(({ value }) => parseInt(value as string))
   @ApiProperty({ 
     description: 'Loan term in months',
     minimum: 1,
@@ -57,7 +57,7 @@ export class LoanCalculationDto {
   @IsOptional()
   @IsNumber()
   @Min(0)
-  @Transform(({ value }) => value ? parseFloat(value) : undefined)
+  @Transform(({ value }) => value ? parseFloat(value as string) : undefined)
   @ApiPropertyOptional({ 
     description: 'Down payment amount (affects loan-to-value ratio)',
     minimum: 0,
@@ -71,7 +71,7 @@ export class LoanCalculationDto {
   @IsNumber()
   @Min(0)
   @Max(0.10)
-  @Transform(({ value }) => value ? parseFloat(value) : undefined)
+  @Transform(({ value }) => value ? parseFloat(value as string) : undefined)
   @ApiPropertyOptional({ 
     description: 'Additional risk-based adjustment',
     minimum: 0,
@@ -85,7 +85,7 @@ export class LoanCalculationDto {
   @IsOptional()
   @IsNumber()
   @Min(0)
-  @Transform(({ value }) => value ? parseFloat(value) : undefined)
+  @Transform(({ value }) => value ? parseFloat(value as string) : undefined)
   @ApiPropertyOptional({ 
     description: 'Extra monthly payment amount for early payoff calculation',
     minimum: 0,
@@ -199,7 +199,7 @@ export class EarlyPayoffCalculationDto {
   @IsOptional()
   @IsNumber()
   @Min(0)
-  @Transform(({ value }) => value ? parseFloat(value) : undefined)
+  @Transform(({ value }) => value ? parseFloat(value as string) : undefined)
   @ApiPropertyOptional({ 
     description: 'Extra monthly payment amount',
     minimum: 0,
@@ -212,7 +212,7 @@ export class EarlyPayoffCalculationDto {
   @IsOptional()
   @IsNumber()
   @Min(0)
-  @Transform(({ value }) => value ? parseFloat(value) : undefined)
+  @Transform(({ value }) => value ? parseFloat(value as string) : undefined)
   @ApiPropertyOptional({ 
     description: 'One-time extra payment amount',
     minimum: 0,

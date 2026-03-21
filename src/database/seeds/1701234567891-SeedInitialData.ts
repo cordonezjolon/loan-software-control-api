@@ -4,6 +4,7 @@ import * as bcrypt from 'bcrypt';
 export class SeedInitialData1701234567891 implements MigrationInterface {
     name = 'SeedInitialData1701234567891'
 
+    // eslint-disable-next-line max-lines-per-function
     public async up(queryRunner: QueryRunner): Promise<void> {
         // Hash password for default users
         const saltRounds = 10;

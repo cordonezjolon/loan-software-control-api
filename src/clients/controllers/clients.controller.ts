@@ -77,7 +77,7 @@ export class ClientsController {
       },
     },
   })
-  async findAll(@Query() query: FindClientsDto) {
+  async findAll(@Query() query: FindClientsDto): Promise<unknown> {
     return this.clientsService.findAll(query);
   }
 
@@ -100,7 +100,7 @@ export class ClientsController {
       },
     },
   })
-  async getStats() {
+  async getStats(): Promise<unknown> {
     return this.clientsService.getClientStats();
   }
 
@@ -187,7 +187,7 @@ export class ClientsController {
       },
     },
   })
-  async getRiskProfile(@Param('id', ParseUUIDPipe) id: string) {
+  async getRiskProfile(@Param('id', ParseUUIDPipe) id: string): Promise<unknown> {
     return this.clientsService.getClientRiskProfile(id);
   }
 
