@@ -1,23 +1,18 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-
-import { InstallmentsController } from './controllers/installments.controller';
-import { InstallmentsService } from './services/installments.service';
+import { ScheduleModule } from '@nestjs/schedule';
+import { InstallmentsController } from './installments.controller';
+import { InstallmentsService } from './installments.service';
 import { LoanInstallment } from './entities/loan-installment.entity';
-import { InstallmentRepository } from './repositories/installment.repository';
+import { Loan } from '../loans/entities/loan.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([LoanInstallment]),
+    TypeOrmModule.forFeature([LoanInstallment, Loan]),
+    ScheduleModule.forRoot(), // For cron jobs
   ],
   controllers: [InstallmentsController],
-  providers: [
-    InstallmentsService,
-    InstallmentRepository,
-  ],
-  exports: [
-    InstallmentsService,
-    InstallmentRepository,
-  ],
+  providers: [InstallmentsService],
+  exports: [InstallmentsService],
 })
 export class InstallmentsModule {}

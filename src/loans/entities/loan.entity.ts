@@ -17,15 +17,35 @@ export enum LoanType {
   AUTO = 'auto',
   MORTGAGE = 'mortgage',
   BUSINESS = 'business',
+  STUDENT = 'student',
+  CREDIT_LINE = 'credit_line',
 }
 
 export enum LoanStatus {
   PENDING = 'pending',
+  UNDER_REVIEW = 'under_review',
   APPROVED = 'approved',
+  REJECTED = 'rejected',
   ACTIVE = 'active',
   COMPLETED = 'completed',
   CANCELLED = 'cancelled',
   DEFAULTED = 'defaulted',
+  CLOSED = 'closed',
+}
+
+export enum LoanPurpose {
+  HOME_PURCHASE = 'home_purchase',
+  REFINANCE = 'refinance',
+  HOME_IMPROVEMENT = 'home_improvement',
+  DEBT_CONSOLIDATION = 'debt_consolidation',
+  AUTO_PURCHASE = 'auto_purchase',
+  BUSINESS_EXPANSION = 'business_expansion',
+  EQUIPMENT_PURCHASE = 'equipment_purchase',
+  WORKING_CAPITAL = 'working_capital',
+  EDUCATION = 'education',
+  MEDICAL_EXPENSES = 'medical_expenses',
+  VACATION = 'vacation',
+  OTHER = 'other',
 }
 
 @Entity('loans')
@@ -66,9 +86,29 @@ export class Loan {
   @ApiProperty({ description: 'Loan type', enum: LoanType })
   loanType: LoanType;
 
+  @Column({ type: 'enum', enum: LoanPurpose })
+  @ApiProperty({ description: 'Purpose of the loan', enum: LoanPurpose })
+  loanPurpose: LoanPurpose;
+
   @Column({ type: 'enum', enum: LoanStatus, default: LoanStatus.PENDING })
   @ApiProperty({ description: 'Loan status', enum: LoanStatus })
   status: LoanStatus;
+
+  @Column({ type: 'decimal', precision: 5, scale: 4, nullable: true })
+  @ApiProperty({ description: 'Risk-based interest rate adjustment', required: false })
+  riskAdjustment?: number;
+
+  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
+  @ApiProperty({ description: 'Down payment amount', required: false })
+  downPayment?: number;
+
+  @Column({ name: 'loanOfficerId', nullable: true })
+  @ApiProperty({ description: 'Loan officer ID', required: false })
+  loanOfficerId?: string;
+
+  @Column({ type: 'text', nullable: true })
+  @ApiProperty({ description: 'Additional notes about the loan', required: false })
+  notes?: string;
 
   @Column({ type: 'date' })
   @ApiProperty({ description: 'Loan start date' })

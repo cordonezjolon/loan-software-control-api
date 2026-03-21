@@ -53,6 +53,26 @@ export class Client {
   @ApiProperty({ description: 'Monthly income', required: false })
   monthlyIncome?: number;
 
+  @Column({ type: 'int', nullable: true, default: 700 })
+  @ApiProperty({ description: 'Client credit score (300-850)', required: false })
+  creditScore?: number;
+
+  @Column({ type: 'decimal', precision: 4, scale: 1, nullable: true, default: 0 })
+  @ApiProperty({ description: 'Years of employment', required: false })
+  employmentYears?: number;
+
+  @Column({ type: 'decimal', precision: 3, scale: 2, nullable: true })
+  @ApiProperty({ description: 'Debt to income ratio (0.0 - 1.0)', required: false })
+  debtToIncomeRatio?: number;
+
+  @Column({ type: 'boolean', default: true })
+  @ApiProperty({ description: 'Whether the client account is active' })
+  isActive: boolean;
+
+  @Column({ type: 'text', nullable: true })
+  @ApiProperty({ description: 'Additional notes about the client', required: false })
+  notes?: string;
+
   @OneToMany(() => Loan, (loan) => loan.client)
   @ApiProperty({ description: 'Client loans', type: () => [Loan] })
   loans: Loan[];

@@ -6,10 +6,12 @@ import { PaymentsService } from './services/payments.service';
 import { PaymentProcessorService } from './services/payment-processor.service';
 import { LoanPayment } from './entities/loan-payment.entity';
 import { PaymentRepository } from './repositories/payment.repository';
+import { InstallmentsModule } from '../installments/installments.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([LoanPayment]),
+    InstallmentsModule,
   ],
   controllers: [PaymentsController],
   providers: [

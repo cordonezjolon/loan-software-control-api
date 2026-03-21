@@ -1,0 +1,258 @@
+import { Injectable, Logger } from '@nestjs/common';
+import { LoanType } from '@/loans/entities/loan.entity';
+
+export interface AmortizationEntry {
+  installmentNumber: number;
+  principalAmount: number;
+  interestAmount: number;
+  totalAmount: number;
+  remainingBalance: number;
+  dueDate: Date;
+}
+
+export interface RiskProfile {
+  creditScore: number;
+  debtToIncomeRatio: number;
+  employmentYears: number;
+  monthlyIncome: number;
+}
+
+export interface LoanCalculationResult {
+  monthlyPayment: number;
+  totalInterest: number;
+  totalAmount: number;
+  amortizationSchedule: AmortizationEntry[];
+}
+
+@Injectable()
+export class LoanCalculationService {
+  private readonly logger = new Logger(LoanCalculationService.name);
+
+  /**
+   * Calculate monthly payment using the standard loan payment formula
+   * PMT = P * [r(1+r)^n] / [(1+r)^n - 1]
+   * Where: P = Principal, r = Monthly interest rate, n = Number of payments
+   */
+  calculateMonthlyPayment(principal: number, annualRate: number, termInMonths: number): number {
+    if (annualRate === 0) {
+      return principal / termInMonths;
+    }
+
+    const monthlyRate = annualRate / 12;
+    const numerator = principal * monthlyRate * Math.pow(1 + monthlyRate, termInMonths);
+    const denominator = Math.pow(1 + monthlyRate, termInMonths) - 1;
+    
+    const payment = numerator / denominator;
+    return Math.round(payment * 100) / 100;
+  }
+
+  /**
+   * Calculate total interest over the loan term
+   */
+  calculateTotalInterest(principal: number, monthlyPayment: number, termInMonths: number): number {
+    const totalPayments = monthlyPayment * termInMonths;
+    return Math.round((totalPayments - principal) * 100) / 100;
+  }
+
+  /**
+   * Generate complete amortization schedule
+   */
+  generateAmortizationSchedule(loan: {
+    principal: number;
+    interestRate: number;
+    termInMonths: number;
+    startDate: Date;
+  }): AmortizationEntry[] {
+    const { principal, interestRate, termInMonths, startDate } = loan;
+    const monthlyPayment = this.calculateMonthlyPayment(principal, interestRate, termInMonths);
+    const monthlyRate = interestRate / 12;
+    const schedule: AmortizationEntry[] = [];
+    let remainingBalance = principal;
+
+    for (let i = 1; i <= termInMonths; i++) {
+      const interestPayment = remainingBalance * monthlyRate;
+      const principalPayment = monthlyPayment - interestPayment;
+      remainingBalance -= principalPayment;
+
+      // Ensure final payment doesn't leave a tiny balance
+      if (i === termInMonths) {
+        remainingBalance = 0;
+      }
+
+      const dueDate = new Date(startDate);
+      dueDate.setMonth(dueDate.getMonth() + i);
+
+      schedule.push({
+        installmentNumber: i,
+        principalAmount: Math.round(principalPayment * 100) / 100,
+        interestAmount: Math.round(interestPayment * 100) / 100,
+        totalAmount: monthlyPayment,
+        remainingBalance: Math.max(0, Math.round(remainingBalance * 100) / 100),
+        dueDate,
+      });
+    }
+
+    return schedule;
+  }
+
+  /**
+   * Calculate comprehensive loan metrics
+   */
+  calculateLoanMetrics(
+    principal: number,
+    annualRate: number,
+    termInMonths: number,
+    startDate: Date
+  ): LoanCalculationResult {
+    this.logger.log(`Calculating loan metrics for principal: $${principal}, rate: ${(annualRate * 100).toFixed(2)}%, term: ${termInMonths} months`);
+
+    const monthlyPayment = this.calculateMonthlyPayment(principal, annualRate, termInMonths);
+    const totalInterest = this.calculateTotalInterest(principal, monthlyPayment, termInMonths);
+    const totalAmount = principal + totalInterest;
+    const amortizationSchedule = this.generateAmortizationSchedule({
+      principal,
+      interestRate: annualRate,
+      termInMonths,
+      startDate,
+    });
+
+    return {
+      monthlyPayment,
+      totalInterest,
+      totalAmount,
+      amortizationSchedule,
+    };
+  }
+
+  /**
+   * Calculate remaining balance at a specific point in time
+   */
+  calculateRemainingBalance(
+    principal: number,
+    annualRate: number,
+    termInMonths: number,
+    paymentsMade: number
+  ): number {
+    if (paymentsMade >= termInMonths) return 0;
+    if (paymentsMade <= 0) return principal;
+
+    const monthlyPayment = this.calculateMonthlyPayment(principal, annualRate, termInMonths);
+    const monthlyRate = annualRate / 12;
+    let balance = principal;
+
+    for (let i = 0; i < paymentsMade; i++) {
+      const interestPayment = balance * monthlyRate;
+      const principalPayment = monthlyPayment - interestPayment;
+      balance -= principalPayment;
+    }
+
+    return Math.max(0, Math.round(balance * 100) / 100);
+  }
+
+  /**
+   * Calculate early payoff savings
+   */
+  calculateEarlyPayoffSavings(
+    principal: number,
+    annualRate: number,
+    termInMonths: number,
+    extraPayment: number
+  ): { monthsSaved: number; interestSaved: number } {
+    const regularPayment = this.calculateMonthlyPayment(principal, annualRate, termInMonths);
+    const totalPayment = regularPayment + extraPayment;
+    const monthlyRate = annualRate / 12;
+
+    let balance = principal;
+    let months = 0;
+    let totalInterestPaid = 0;
+
+    while (balance > 0 && months < termInMonths) {
+      const interestPayment = balance * monthlyRate;
+      const principalPayment = Math.min(totalPayment - interestPayment, balance);
+      
+      balance -= principalPayment;
+      totalInterestPaid += interestPayment;
+      months++;
+
+      if (balance <= 0) break;
+    }
+
+    const originalTotalInterest = this.calculateTotalInterest(principal, regularPayment, termInMonths);
+    const monthsSaved = termInMonths - months;
+    const interestSaved = originalTotalInterest - totalInterestPaid;
+
+    return {
+      monthsSaved,
+      interestSaved: Math.round(interestSaved * 100) / 100,
+    };
+  }
+
+  /**
+   * Calculate complete early payoff scenario with both extra payments and lump sum
+   */
+  calculateEarlyPayoff(
+    currentBalance: number,
+    interestRate: number,
+    monthlyPayment: number,
+    extraMonthlyPayment: number,
+    lumpSumPayment: number,
+    originalPayoffDate: Date
+  ): {
+    originalPayoffDate: string;
+    newPayoffDate: string;
+    monthsSaved: number;
+    interestSaved: number;
+    totalExtraPayments: number;
+    netSavings: number;
+  } {
+    const monthlyRate = interestRate / 12;
+    let balance = currentBalance - lumpSumPayment; // Apply lump sum immediately
+    const totalMonthlyPayment = monthlyPayment + extraMonthlyPayment;
+    
+    let months = 0;
+    let totalInterestPaid = 0;
+    let totalExtraPayments = lumpSumPayment;
+    const maxMonths = 600; // Safety limit
+
+    // Calculate with extra payments
+    while (balance > 0 && months < maxMonths) {
+      const interestPayment = balance * monthlyRate;
+      const principalPayment = Math.min(totalMonthlyPayment - interestPayment, balance);
+      
+      balance -= principalPayment;
+      totalInterestPaid += interestPayment;
+      totalExtraPayments += extraMonthlyPayment;
+      months++;
+
+      if (balance <= 0.01) break; // Small tolerance for floating point errors
+    }
+
+    // Calculate what interest would have been without extra payments
+    const remainingMonthsFromOriginal = Math.ceil((originalPayoffDate.getTime() - new Date().getTime()) / (30 * 24 * 60 * 60 * 1000));
+    let originalInterestFromNow = 0;
+    let tempBalance = currentBalance;
+    
+    for (let i = 0; i < remainingMonthsFromOriginal && tempBalance > 0; i++) {
+      const interestPayment = tempBalance * monthlyRate;
+      const principalPayment = monthlyPayment - interestPayment;
+      originalInterestFromNow += interestPayment;
+      tempBalance -= principalPayment;
+    }
+
+    const newPayoffDate = new Date();
+    newPayoffDate.setMonth(newPayoffDate.getMonth() + months);
+
+    const monthsSaved = remainingMonthsFromOriginal - months;
+    const interestSaved = originalInterestFromNow - totalInterestPaid;
+    const netSavings = interestSaved - totalExtraPayments;
+
+    return {
+      originalPayoffDate: originalPayoffDate.toISOString().split('T')[0],
+      newPayoffDate: newPayoffDate.toISOString().split('T')[0],
+      monthsSaved,
+      interestSaved: Math.round(interestSaved * 100) / 100,
+      totalExtraPayments: Math.round(totalExtraPayments * 100) / 100,
+      netSavings: Math.round(netSavings * 100) / 100,
+    };
+  }
+}

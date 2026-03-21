@@ -3,6 +3,8 @@ import {
   PrimaryGeneratedColumn,
   Column,
   CreateDateColumn,
+  ManyToOne,
+  JoinColumn,
 } from 'typeorm';
 import { ApiProperty } from '@nestjs/swagger';
 import { LoanType } from './loan.entity';
@@ -17,17 +19,25 @@ export class InterestRateHistory {
   @ApiProperty({ description: 'Loan type', enum: LoanType })
   loanType: LoanType;
 
-  @Column({ type: 'decimal', precision: 5, scale: 4 })
-  @ApiProperty({ description: 'Interest rate' })
-  rate: number;
+  @Column({ type: 'decimal', precision: 5, scale: 4, nullable: true })
+  @ApiProperty({ description: 'Previous interest rate', required: false })
+  oldRate?: number;
 
-  @Column({ type: 'date' })
-  @ApiProperty({ description: 'Effective date' })
+  @Column({ type: 'decimal', precision: 5, scale: 4 })
+  @ApiProperty({ description: 'New interest rate' })
+  newRate: number;
+
+  @Column({ type: 'timestamp' })
+  @ApiProperty({ description: 'Date when rate change becomes effective' })
   effectiveDate: Date;
 
   @Column({ nullable: true })
-  @ApiProperty({ description: 'Rate change reason', required: false })
+  @ApiProperty({ description: 'Reason for rate change', required: false })
   reason?: string;
+
+  @Column({ type: 'uuid', nullable: true })
+  @ApiProperty({ description: 'User who made the change', required: false })
+  changedBy?: string;
 
   @CreateDateColumn()
   @ApiProperty({ description: 'Record creation date' })
