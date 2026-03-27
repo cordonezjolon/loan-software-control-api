@@ -1,8 +1,4 @@
-import {
-  Injectable,
-  ConflictException,
-  Logger,
-} from '@nestjs/common';
+import { Injectable, ConflictException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
@@ -12,6 +8,7 @@ import { User } from './entities/user.entity';
 import { RegisterDto } from './dto/register.dto';
 import { JwtAuthResponse } from './dto/jwt-auth-response.dto';
 import { JwtPayload } from './interfaces/jwt-payload.interface';
+import { BCRYPT_SALT_ROUNDS } from '../shared/constants';
 
 @Injectable()
 export class AuthService {
@@ -23,10 +20,13 @@ export class AuthService {
     private readonly jwtService: JwtService,
   ) {}
 
-  async validateUser(username: string, password: string): Promise<Omit<User, 'passwordHash'> | null> {
+  async validateUser(
+    username: string,
+    password: string,
+  ): Promise<Omit<User, 'passwordHash'> | null> {
     const user = await this.userRepository.findOne({ where: { username } });
-    
-    if (user && await bcrypt.compare(password, user.passwordHash)) {
+
+    if (user && (await bcrypt.compare(password, user.passwordHash))) {
       const { passwordHash: _passwordHash, ...result } = user;
       return result;
     }
@@ -63,7 +63,7 @@ export class AuthService {
       throw new ConflictException('User with this username already exists');
     }
 
-    const saltRounds = 12;
+    const saltRounds = BCRYPT_SALT_ROUNDS;
     const hashedPassword = await bcrypt.hash(registerDto.password, saltRounds);
 
     const user = this.userRepository.create({
@@ -80,11 +80,13 @@ export class AuthService {
     return this.login(userWithoutPassword);
   }
 
-  async validateToken(token: string): Promise<{ valid: boolean; user?: Omit<User, 'passwordHash'> }> {
+  async validateToken(
+    token: string,
+  ): Promise<{ valid: boolean; user?: Omit<User, 'passwordHash'> }> {
     try {
       const decoded = this.jwtService.verify<{ sub: string }>(token);
       const user = await this.userRepository.findOne({ where: { id: decoded.sub } });
-      
+
       if (!user) {
         return { valid: false };
       }
@@ -92,7 +94,9 @@ export class AuthService {
       const { passwordHash: _passwordHash2, ...userWithoutPassword } = user;
       return { valid: true, user: userWithoutPassword };
     } catch (error) {
-      this.logger.warn(`Invalid token validation attempt: ${error instanceof Error ? error.message : String(error)}`);
+      this.logger.warn(
+        `Invalid token validation attempt: ${error instanceof Error ? error.message : String(error)}`,
+      );
       return { valid: false };
     }
   }

@@ -1,127 +1,161 @@
-import { IsNotEmpty, IsNumber, IsUUID, IsEnum, IsDateString, IsOptional, Min, Max, IsInt, IsString } from 'class-validator';
+import {
+  IsNotEmpty,
+  IsNumber,
+  IsUUID,
+  IsEnum,
+  IsDateString,
+  IsOptional,
+  Min,
+  Max,
+  IsInt,
+  IsString,
+} from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import { LoanType, LoanPurpose } from '../entities/loan.entity';
+import {
+  LOAN_MIN_PRINCIPAL,
+  LOAN_MAX_PRINCIPAL,
+  LOAN_MIN_INTEREST_RATE,
+  LOAN_MAX_INTEREST_RATE,
+  LOAN_MIN_TERM_MONTHS,
+  LOAN_MAX_TERM_MONTHS,
+  LOAN_MAX_RISK_ADJUSTMENT,
+} from '../../shared/constants';
 
 export class CreateLoanDto {
   @IsNotEmpty()
   @IsUUID()
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Client ID who is applying for the loan',
     format: 'uuid',
-    example: '123e4567-e89b-12d3-a456-426614174000'
+    example: '123e4567-e89b-12d3-a456-426614174000',
   })
   clientId: string;
 
   @IsNumber()
-  @Min(1000, { message: 'Loan amount must be at least $1,000' })
-  @Max(5000000, { message: 'Loan amount cannot exceed $5,000,000' })
+  @Min(LOAN_MIN_PRINCIPAL, {
+    message: `Loan amount must be at least $${LOAN_MIN_PRINCIPAL.toLocaleString()}`,
+  })
+  @Max(LOAN_MAX_PRINCIPAL, {
+    message: `Loan amount cannot exceed $${LOAN_MAX_PRINCIPAL.toLocaleString()}`,
+  })
   @Transform(({ value }) => parseFloat(value as string))
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Principal loan amount in USD',
-    minimum: 1000,
-    maximum: 5000000,
+    minimum: LOAN_MIN_PRINCIPAL,
+    maximum: LOAN_MAX_PRINCIPAL,
     example: 250000,
     type: 'number',
-    format: 'decimal'
+    format: 'decimal',
   })
   principal: number;
 
   @IsNumber()
-  @Min(0.01, { message: 'Interest rate must be at least 1%' })
-  @Max(0.35, { message: 'Interest rate cannot exceed 35%' })
+  @Min(LOAN_MIN_INTEREST_RATE, {
+    message: `Interest rate must be at least ${LOAN_MIN_INTEREST_RATE * 100}%`,
+  })
+  @Max(LOAN_MAX_INTEREST_RATE, {
+    message: `Interest rate cannot exceed ${LOAN_MAX_INTEREST_RATE * 100}%`,
+  })
   @Transform(({ value }) => parseFloat(value as string))
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Annual interest rate as decimal (e.g., 0.05 for 5%)',
-    minimum: 0.01,
-    maximum: 0.35,
+    minimum: LOAN_MIN_INTEREST_RATE,
+    maximum: LOAN_MAX_INTEREST_RATE,
     example: 0.055,
     type: 'number',
-    format: 'decimal'
+    format: 'decimal',
   })
   interestRate: number;
 
   @IsInt()
-  @Min(6, { message: 'Loan term must be at least 6 months' })
-  @Max(480, { message: 'Loan term cannot exceed 40 years (480 months)' })
+  @Min(LOAN_MIN_TERM_MONTHS, {
+    message: `Loan term must be at least ${LOAN_MIN_TERM_MONTHS} months`,
+  })
+  @Max(LOAN_MAX_TERM_MONTHS, {
+    message: `Loan term cannot exceed 40 years (${LOAN_MAX_TERM_MONTHS} months)`,
+  })
   @Transform(({ value }) => parseInt(value as string))
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Loan term in months',
-    minimum: 6,
-    maximum: 480,
+    minimum: LOAN_MIN_TERM_MONTHS,
+    maximum: LOAN_MAX_TERM_MONTHS,
     example: 360,
-    type: 'integer'
+    type: 'integer',
   })
   termInMonths: number;
 
   @IsEnum(LoanType)
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Type of loan being requested',
     enum: LoanType,
-    example: LoanType.MORTGAGE
+    example: LoanType.MORTGAGE,
   })
   loanType: LoanType;
 
   @IsEnum(LoanPurpose)
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Purpose of the loan',
     enum: LoanPurpose,
-    example: LoanPurpose.HOME_PURCHASE
+    example: LoanPurpose.HOME_PURCHASE,
   })
   loanPurpose: LoanPurpose;
 
   @IsDateString()
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Requested loan start date (ISO 8601 format)',
     example: '2024-01-15',
     type: 'string',
-    format: 'date'
+    format: 'date',
   })
   startDate: string;
 
   @IsOptional()
   @IsNumber()
   @Min(0, { message: 'Risk adjustment cannot be negative' })
-  @Max(0.10, { message: 'Risk adjustment cannot exceed 10%' })
-  @Transform(({ value }) => value ? parseFloat(value as string) : undefined)
-  @ApiPropertyOptional({ 
+  @Max(LOAN_MAX_RISK_ADJUSTMENT, {
+    message: `Risk adjustment cannot exceed ${LOAN_MAX_RISK_ADJUSTMENT * 100}%`,
+  })
+  @Transform(({ value }) => (value ? parseFloat(value as string) : undefined))
+  @ApiPropertyOptional({
     description: 'Additional risk-based interest rate adjustment',
     minimum: 0,
-    maximum: 0.10,
+    maximum: LOAN_MAX_RISK_ADJUSTMENT,
     example: 0.005,
     type: 'number',
-    format: 'decimal'
+    format: 'decimal',
   })
   riskAdjustment?: number;
 
   @IsOptional()
   @IsNumber()
   @Min(0, { message: 'Down payment cannot be negative' })
-  @Transform(({ value }) => value ? parseFloat(value as string) : undefined)
-  @ApiPropertyOptional({ 
+  @Transform(({ value }) => (value ? parseFloat(value as string) : undefined))
+  @ApiPropertyOptional({
     description: 'Down payment amount (for secured loans)',
     minimum: 0,
     example: 50000,
     type: 'number',
-    format: 'decimal'
+    format: 'decimal',
   })
   downPayment?: number;
 
   @IsOptional()
   @IsUUID()
-  @ApiPropertyOptional({ 
+  @ApiPropertyOptional({
     description: 'ID of the loan officer handling this application',
     format: 'uuid',
-    example: '123e4567-e89b-12d3-a456-426614174001'
+    example: '123e4567-e89b-12d3-a456-426614174001',
   })
   loanOfficerId?: string;
 
   @IsOptional()
   @IsString()
-  @ApiPropertyOptional({ 
+  @ApiPropertyOptional({
     description: 'Additional notes or comments about the loan',
     example: 'Customer provided additional documentation for income verification',
-    maxLength: 1000
+    maxLength: 1000,
   })
   notes?: string;
 }

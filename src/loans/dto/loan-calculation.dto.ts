@@ -2,151 +2,168 @@ import { IsNotEmpty, IsNumber, IsInt, Min, Max, IsOptional, IsEnum } from 'class
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import { LoanType } from '../entities/loan.entity';
+import {
+  CALC_MIN_PRINCIPAL,
+  CALC_MAX_PRINCIPAL,
+  CALC_MIN_INTEREST_RATE,
+  CALC_MAX_INTEREST_RATE,
+  CALC_MIN_TERM_MONTHS,
+  LOAN_MAX_TERM_MONTHS,
+  LOAN_MAX_RISK_ADJUSTMENT,
+} from '../../shared/constants';
 
 export class LoanCalculationDto {
   @IsNumber()
-  @Min(1000, { message: 'Principal amount must be at least $1,000' })
-  @Max(10000000, { message: 'Principal amount cannot exceed $10,000,000' })
+  @Min(CALC_MIN_PRINCIPAL, {
+    message: `Principal amount must be at least $${CALC_MIN_PRINCIPAL.toLocaleString()}`,
+  })
+  @Max(CALC_MAX_PRINCIPAL, {
+    message: `Principal amount cannot exceed $${CALC_MAX_PRINCIPAL.toLocaleString()}`,
+  })
   @Transform(({ value }) => parseFloat(value as string))
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Principal loan amount for calculation',
-    minimum: 1000,
-    maximum: 10000000,
+    minimum: CALC_MIN_PRINCIPAL,
+    maximum: CALC_MAX_PRINCIPAL,
     example: 250000,
     type: 'number',
-    format: 'decimal'
+    format: 'decimal',
   })
   principal: number;
 
   @IsNumber()
-  @Min(0.001, { message: 'Interest rate must be positive' })
-  @Max(0.50, { message: 'Interest rate cannot exceed 50%' })
+  @Min(CALC_MIN_INTEREST_RATE, { message: 'Interest rate must be positive' })
+  @Max(CALC_MAX_INTEREST_RATE, {
+    message: `Interest rate cannot exceed ${CALC_MAX_INTEREST_RATE * 100}%`,
+  })
   @Transform(({ value }) => parseFloat(value as string))
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Annual interest rate as decimal (e.g., 0.05 for 5%)',
-    minimum: 0.001,
-    maximum: 0.50,
+    minimum: CALC_MIN_INTEREST_RATE,
+    maximum: CALC_MAX_INTEREST_RATE,
     example: 0.055,
     type: 'number',
-    format: 'decimal'
+    format: 'decimal',
   })
   interestRate: number;
 
   @IsInt()
-  @Min(1, { message: 'Term must be at least 1 month' })
-  @Max(480, { message: 'Term cannot exceed 40 years (480 months)' })
+  @Min(CALC_MIN_TERM_MONTHS, { message: `Term must be at least ${CALC_MIN_TERM_MONTHS} month` })
+  @Max(LOAN_MAX_TERM_MONTHS, {
+    message: `Term cannot exceed 40 years (${LOAN_MAX_TERM_MONTHS} months)`,
+  })
   @Transform(({ value }) => parseInt(value as string))
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Loan term in months',
-    minimum: 1,
-    maximum: 480,
+    minimum: CALC_MIN_TERM_MONTHS,
+    maximum: LOAN_MAX_TERM_MONTHS,
     example: 360,
-    type: 'integer'
+    type: 'integer',
   })
   termInMonths: number;
 
   @IsOptional()
   @IsEnum(LoanType)
-  @ApiPropertyOptional({ 
+  @ApiPropertyOptional({
     description: 'Type of loan for calculation',
     enum: LoanType,
-    example: LoanType.MORTGAGE
+    example: LoanType.MORTGAGE,
   })
   loanType?: LoanType;
 
   @IsOptional()
   @IsNumber()
   @Min(0)
-  @Transform(({ value }) => value ? parseFloat(value as string) : undefined)
-  @ApiPropertyOptional({ 
+  @Transform(({ value }) => (value ? parseFloat(value as string) : undefined))
+  @ApiPropertyOptional({
     description: 'Down payment amount (affects loan-to-value ratio)',
     minimum: 0,
     example: 50000,
     type: 'number',
-    format: 'decimal'
+    format: 'decimal',
   })
   downPayment?: number;
 
   @IsOptional()
   @IsNumber()
   @Min(0)
-  @Max(0.10)
-  @Transform(({ value }) => value ? parseFloat(value as string) : undefined)
-  @ApiPropertyOptional({ 
+  @Max(LOAN_MAX_RISK_ADJUSTMENT)
+  @Transform(({ value }) => (value ? parseFloat(value as string) : undefined))
+  @ApiPropertyOptional({
     description: 'Additional risk-based adjustment',
     minimum: 0,
-    maximum: 0.10,
+    maximum: LOAN_MAX_RISK_ADJUSTMENT,
     example: 0.005,
     type: 'number',
-    format: 'decimal'
+    format: 'decimal',
   })
   riskAdjustment?: number;
 
   @IsOptional()
   @IsNumber()
   @Min(0)
-  @Transform(({ value }) => value ? parseFloat(value as string) : undefined)
-  @ApiPropertyOptional({ 
+  @Transform(({ value }) => (value ? parseFloat(value as string) : undefined))
+  @ApiPropertyOptional({
     description: 'Extra monthly payment amount for early payoff calculation',
     minimum: 0,
     example: 200,
     type: 'number',
-    format: 'decimal'
+    format: 'decimal',
   })
   extraPayment?: number;
 }
 
 export class LoanCalculationResultDto {
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Monthly payment amount',
     example: 1342.05,
     type: 'number',
-    format: 'decimal'
+    format: 'decimal',
   })
   monthlyPayment: number;
 
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Total interest over the loan term',
-    example: 233138.40,
+    example: 233138.4,
     type: 'number',
-    format: 'decimal'
+    format: 'decimal',
   })
   totalInterest: number;
 
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Total amount to be paid (principal + interest)',
-    example: 483138.40,
+    example: 483138.4,
     type: 'number',
-    format: 'decimal'
+    format: 'decimal',
   })
   totalAmount: number;
 
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Effective annual interest rate (including fees and adjustments)',
     example: 0.056,
     type: 'number',
-    format: 'decimal'
+    format: 'decimal',
   })
   effectiveRate: number;
 
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Loan-to-value ratio (for secured loans)',
-    example: 0.80,
+    example: 0.8,
     type: 'number',
     format: 'decimal',
-    nullable: true
+    nullable: true,
   })
   loanToValueRatio?: number;
 
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Debt-to-income ratio impact',
     example: 0.28,
     type: 'number',
-    format: 'decimal'
+    format: 'decimal',
   })
   debtToIncomeImpact: number;
 
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Amortization schedule for each payment',
     type: 'array',
     items: {
@@ -157,9 +174,9 @@ export class LoanCalculationResultDto {
         interestAmount: { type: 'number', format: 'decimal', example: 1145.83 },
         totalAmount: { type: 'number', format: 'decimal', example: 1342.05 },
         remainingBalance: { type: 'number', format: 'decimal', example: 249436.11 },
-        dueDate: { type: 'string', format: 'date', example: '2024-02-15' }
-      }
-    }
+        dueDate: { type: 'string', format: 'date', example: '2024-02-15' },
+      },
+    },
   })
   amortizationSchedule: Array<{
     installmentNumber: number;
@@ -170,15 +187,15 @@ export class LoanCalculationResultDto {
     dueDate: string;
   }>;
 
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Summary statistics for the loan',
     type: 'object',
     properties: {
       totalPayments: { type: 'integer', example: 360 },
       firstPaymentDate: { type: 'string', format: 'date', example: '2024-01-15' },
       lastPaymentDate: { type: 'string', format: 'date', example: '2054-01-15' },
-      interestPercentage: { type: 'number', format: 'decimal', example: 48.30 }
-    }
+      interestPercentage: { type: 'number', format: 'decimal', example: 48.3 },
+    },
   })
   summary: {
     totalPayments: number;
@@ -190,84 +207,84 @@ export class LoanCalculationResultDto {
 
 export class EarlyPayoffCalculationDto {
   @IsNotEmpty()
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Loan ID for early payoff calculation',
-    example: '123e4567-e89b-12d3-a456-426614174000'
+    example: '123e4567-e89b-12d3-a456-426614174000',
   })
   loanId: string;
 
   @IsOptional()
   @IsNumber()
   @Min(0)
-  @Transform(({ value }) => value ? parseFloat(value as string) : undefined)
-  @ApiPropertyOptional({ 
+  @Transform(({ value }) => (value ? parseFloat(value as string) : undefined))
+  @ApiPropertyOptional({
     description: 'Extra monthly payment amount',
     minimum: 0,
     example: 500,
     type: 'number',
-    format: 'decimal'
+    format: 'decimal',
   })
   extraMonthlyPayment?: number;
 
   @IsOptional()
   @IsNumber()
   @Min(0)
-  @Transform(({ value }) => value ? parseFloat(value as string) : undefined)
-  @ApiPropertyOptional({ 
+  @Transform(({ value }) => (value ? parseFloat(value as string) : undefined))
+  @ApiPropertyOptional({
     description: 'One-time extra payment amount',
     minimum: 0,
     example: 10000,
     type: 'number',
-    format: 'decimal'
+    format: 'decimal',
   })
   lumpSumPayment?: number;
 }
 
 export class EarlyPayoffResultDto {
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Original loan payoff date',
     example: '2054-01-15',
     type: 'string',
-    format: 'date'
+    format: 'date',
   })
   originalPayoffDate: string;
 
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'New payoff date with extra payments',
     example: '2049-08-15',
     type: 'string',
-    format: 'date'
+    format: 'date',
   })
   newPayoffDate: string;
 
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Time saved in months',
     example: 54,
-    type: 'integer'
+    type: 'integer',
   })
   monthsSaved: number;
 
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Total interest saved',
-    example: 47250.80,
+    example: 47250.8,
     type: 'number',
-    format: 'decimal'
+    format: 'decimal',
   })
   interestSaved: number;
 
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Total extra payments made',
-    example: 32500.00,
+    example: 32500.0,
     type: 'number',
-    format: 'decimal'
+    format: 'decimal',
   })
   totalExtraPayments: number;
 
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Net savings (interest saved minus extra payments)',
-    example: 14750.80,
+    example: 14750.8,
     type: 'number',
-    format: 'decimal'
+    format: 'decimal',
   })
   netSavings: number;
 }

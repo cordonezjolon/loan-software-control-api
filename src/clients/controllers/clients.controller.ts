@@ -40,9 +40,9 @@ export class ClientsController {
 
   @Post()
   @Roles(UserRole.ADMIN, UserRole.LOAN_OFFICER, UserRole.EMPLOYEE)
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Create new client',
-    description: 'Creates a new client profile with validation'
+    description: 'Creates a new client profile with validation',
   })
   @ApiResponse({
     status: HttpStatus.CREATED,
@@ -60,9 +60,9 @@ export class ClientsController {
 
   @Get()
   @Roles(UserRole.ADMIN, UserRole.LOAN_OFFICER, UserRole.EMPLOYEE)
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Get all clients with filtering and pagination',
-    description: 'Retrieves clients with search, filtering, and pagination support'
+    description: 'Retrieves clients with search, filtering, and pagination support',
   })
   @ApiResponse({
     status: HttpStatus.OK,
@@ -83,9 +83,9 @@ export class ClientsController {
 
   @Get('stats')
   @Roles(UserRole.ADMIN, UserRole.LOAN_OFFICER)
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Get client statistics',
-    description: 'Retrieves aggregate statistics about clients'
+    description: 'Retrieves aggregate statistics about clients',
   })
   @ApiResponse({
     status: HttpStatus.OK,
@@ -106,9 +106,9 @@ export class ClientsController {
 
   @Get('eligible')
   @Roles(UserRole.ADMIN, UserRole.LOAN_OFFICER)
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Get loan-eligible clients',
-    description: 'Retrieves clients that meet basic loan eligibility criteria'
+    description: 'Retrieves clients that meet basic loan eligibility criteria',
   })
   @ApiResponse({
     status: HttpStatus.OK,
@@ -121,14 +121,14 @@ export class ClientsController {
 
   @Get('search')
   @Roles(UserRole.ADMIN, UserRole.LOAN_OFFICER, UserRole.EMPLOYEE)
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Search clients for loan assignment',
-    description: 'Quick search for clients suitable for loan processing'
+    description: 'Quick search for clients suitable for loan processing',
   })
-  @ApiQuery({ 
-    name: 'term', 
+  @ApiQuery({
+    name: 'term',
     description: 'Search term for client name or email',
-    example: 'john'
+    example: 'john',
   })
   @ApiResponse({
     status: HttpStatus.OK,
@@ -141,14 +141,14 @@ export class ClientsController {
 
   @Get(':id')
   @Roles(UserRole.ADMIN, UserRole.LOAN_OFFICER, UserRole.EMPLOYEE)
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Get client by ID',
-    description: 'Retrieves a specific client by their unique identifier'
+    description: 'Retrieves a specific client by their unique identifier',
   })
-  @ApiParam({ 
-    name: 'id', 
+  @ApiParam({
+    name: 'id',
     description: 'Client UUID',
-    example: '123e4567-e89b-12d3-a456-426614174000'
+    example: '123e4567-e89b-12d3-a456-426614174000',
   })
   @ApiResponse({
     status: HttpStatus.OK,
@@ -165,14 +165,14 @@ export class ClientsController {
 
   @Get(':id/risk-profile')
   @Roles(UserRole.ADMIN, UserRole.LOAN_OFFICER)
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Get client risk profile',
-    description: 'Retrieves client risk profile for loan calculations'
+    description: 'Retrieves client risk profile for loan calculations',
   })
-  @ApiParam({ 
-    name: 'id', 
+  @ApiParam({
+    name: 'id',
     description: 'Client UUID',
-    example: '123e4567-e89b-12d3-a456-426614174000'
+    example: '123e4567-e89b-12d3-a456-426614174000',
   })
   @ApiResponse({
     status: HttpStatus.OK,
@@ -193,14 +193,14 @@ export class ClientsController {
 
   @Patch(':id')
   @Roles(UserRole.ADMIN, UserRole.LOAN_OFFICER, UserRole.EMPLOYEE)
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Update client',
-    description: 'Updates an existing client profile'
+    description: 'Updates an existing client profile',
   })
-  @ApiParam({ 
-    name: 'id', 
+  @ApiParam({
+    name: 'id',
     description: 'Client UUID',
-    example: '123e4567-e89b-12d3-a456-426614174000'
+    example: '123e4567-e89b-12d3-a456-426614174000',
   })
   @ApiResponse({
     status: HttpStatus.OK,
@@ -225,18 +225,19 @@ export class ClientsController {
 
   @Delete(':id')
   @Roles(UserRole.ADMIN)
-  @ApiOperation({ 
-    summary: 'Delete client',
-    description: 'Deletes a client (admin only, cannot delete clients with active loans)'
+  @ApiOperation({
+    summary: 'Deactivate client',
+    description:
+      'Soft deletes (deactivates) a client (admin only, cannot deactivate clients with active loans)',
   })
-  @ApiParam({ 
-    name: 'id', 
+  @ApiParam({
+    name: 'id',
     description: 'Client UUID',
-    example: '123e4567-e89b-12d3-a456-426614174000'
+    example: '123e4567-e89b-12d3-a456-426614174000',
   })
   @ApiResponse({
     status: HttpStatus.OK,
-    description: 'Client deleted successfully',
+    description: 'Client deactivated successfully',
   })
   @ApiResponse({
     status: HttpStatus.NOT_FOUND,
@@ -244,10 +245,10 @@ export class ClientsController {
   })
   @ApiResponse({
     status: HttpStatus.CONFLICT,
-    description: 'Cannot delete client with active loans',
+    description: 'Cannot deactivate client with active loans',
   })
   async remove(@Param('id', ParseUUIDPipe) id: string): Promise<{ message: string }> {
     await this.clientsService.remove(id);
-    return { message: 'Client deleted successfully' };
+    return { message: 'Client deactivated successfully' };
   }
 }

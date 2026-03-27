@@ -1,12 +1,18 @@
 import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between, LessThanOrEqual } from 'typeorm';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { Cron } from '@nestjs/schedule';
 import { LoanInstallment, InstallmentStatus } from './entities/loan-installment.entity';
 import { Loan, LoanStatus } from '../loans/entities/loan.entity';
 import { LoanPayment } from '../payments/entities/loan-payment.entity';
 import { FindInstallmentsDto } from './dto/find-installments.dto';
 import { PaginatedResult } from '../shared/interfaces/paginated-result.interface';
+import {
+  LATE_FEE_PERCENTAGE,
+  LATE_FEE_INTERVAL_DAYS,
+  CRON_OVERDUE_CHECK,
+  CRON_LATE_FEE_APPLY,
+} from '../shared/constants';
 
 @Injectable()
 export class InstallmentsService {
@@ -23,7 +29,9 @@ export class InstallmentsService {
    * Find all installments with filtering and pagination
    */
   // eslint-disable-next-line max-lines-per-function
-  async findAll(findInstallmentsDto: FindInstallmentsDto): Promise<PaginatedResult<LoanInstallment>> {
+  async findAll(
+    findInstallmentsDto: FindInstallmentsDto,
+  ): Promise<PaginatedResult<LoanInstallment>> {
     const {
       page = 1,
       limit = 10,
@@ -69,7 +77,7 @@ export class InstallmentsService {
       const today = new Date();
       queryBuilder.andWhere('installment.dueDate < :today', { today });
       queryBuilder.andWhere('installment.status IN (:...overdueStatuses)', {
-        overdueStatuses: [InstallmentStatus.PENDING, InstallmentStatus.OVERDUE]
+        overdueStatuses: [InstallmentStatus.PENDING, InstallmentStatus.OVERDUE],
       });
     }
 
@@ -259,7 +267,9 @@ export class InstallmentsService {
           stats.overdueInstallments++;
           stats.overdueAmount += amount + lateFee;
 
-          const daysOverdue = Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
+          const daysOverdue = Math.floor(
+            (today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24),
+          );
           totalOverdueDays += daysOverdue;
           overdueCount++;
         } else {
@@ -292,10 +302,10 @@ export class InstallmentsService {
       installmentNumber: number;
       totalAmount: number;
       dueDate: Date;
-    }>
+    }>,
   ): Promise<LoanInstallment[]> {
     const loan = await this.loanRepository.findOne({ where: { id: loanId } });
-    
+
     if (!loan) {
       throw new NotFoundException(`Loan with ID ${loanId} not found`);
     }
@@ -306,16 +316,16 @@ export class InstallmentsService {
 
     // Get existing unpaid installments
     const existingInstallments = await this.installmentRepository.find({
-      where: { 
+      where: {
         loan: { id: loanId },
-        status: InstallmentStatus.PENDING
+        status: InstallmentStatus.PENDING,
       },
     });
 
     // Update existing installments
     for (const newScheduleItem of newSchedule) {
       const existing = existingInstallments.find(
-        i => i.installmentNumber === newScheduleItem.installmentNumber
+        i => i.installmentNumber === newScheduleItem.installmentNumber,
       );
 
       if (existing) {
@@ -334,10 +344,8 @@ export class InstallmentsService {
    */
   async calculateRemainingBalance(loanId: string): Promise<number> {
     const installments = await this.findByLoanId(loanId);
-    
-    const unpaidInstallments = installments.filter(
-      i => i.status !== InstallmentStatus.PAID
-    );
+
+    const unpaidInstallments = installments.filter(i => i.status !== InstallmentStatus.PAID);
 
     return unpaidInstallments.reduce((total, installment) => {
       return total + Number(installment.totalAmount) + Number(installment.lateFee);
@@ -348,10 +356,10 @@ export class InstallmentsService {
    * Automated job to mark overdue installments
    * Runs daily at midnight
    */
-  @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
+  @Cron(CRON_OVERDUE_CHECK)
   async markOverdueInstallments(): Promise<void> {
     const overdueInstallments = await this.findOverdueInstallments();
-    
+
     for (const installment of overdueInstallments) {
       await this.installmentRepository.update(installment.id, {
         status: InstallmentStatus.OVERDUE,
@@ -365,7 +373,7 @@ export class InstallmentsService {
    * Apply automated late fees
    * Runs daily at 1 AM
    */
-  @Cron('0 1 * * *')
+  @Cron(CRON_LATE_FEE_APPLY)
   async applyAutomatedLateFees(): Promise<void> {
     const overdueInstallments = await this.installmentRepository.find({
       where: { status: InstallmentStatus.OVERDUE },
@@ -374,13 +382,12 @@ export class InstallmentsService {
 
     for (const installment of overdueInstallments) {
       const daysOverdue = Math.floor(
-        (new Date().getTime() - installment.dueDate.getTime()) / (1000 * 60 * 60 * 24)
+        (new Date().getTime() - installment.dueDate.getTime()) / (1000 * 60 * 60 * 24),
       );
 
-      // Apply late fee every 30 days (configurable business rule)
-      if (daysOverdue > 0 && daysOverdue % 30 === 0) {
-        const lateFeePercentage = 0.05; // 5% late fee (configurable)
-        const lateFeeAmount = Number(installment.totalAmount) * lateFeePercentage;
+      // Apply late fee every LATE_FEE_INTERVAL_DAYS days
+      if (daysOverdue > 0 && daysOverdue % LATE_FEE_INTERVAL_DAYS === 0) {
+        const lateFeeAmount = Number(installment.totalAmount) * LATE_FEE_PERCENTAGE;
 
         await this.applyLateFees(installment.id, lateFeeAmount);
       }

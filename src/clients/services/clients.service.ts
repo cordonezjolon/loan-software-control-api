@@ -31,28 +31,34 @@ export class ClientsService {
     const client = this.clientRepository.create(createClientDto);
     const savedClient = await this.clientRepository.save(client);
 
-    this.logger.log(`New client created: ${savedClient.firstName} ${savedClient.lastName} (${savedClient.email})`);
+    this.logger.log(
+      `New client created: ${savedClient.firstName} ${savedClient.lastName} (${savedClient.email})`,
+    );
 
     return savedClient;
   }
 
   // eslint-disable-next-line max-lines-per-function
-  async findAll(query: FindClientsDto): Promise<{ data: Client[]; total: number; page: number; totalPages: number }> {
-    const { 
-      page = 1, 
-      limit = 10, 
-      search, 
-      sortBy = ClientSortBy.CREATED_AT, 
+  async findAll(
+    query: FindClientsDto,
+  ): Promise<{ data: Client[]; total: number; page: number; totalPages: number }> {
+    const {
+      page = 1,
+      limit = 10,
+      search,
+      sortBy = ClientSortBy.CREATED_AT,
       sortOrder = SortOrder.DESC,
       minCreditScore,
-      minMonthlyIncome 
+      minMonthlyIncome,
     } = query;
 
-    const queryBuilder = this.clientRepository.createQueryBuilder('client');
+    const queryBuilder = this.clientRepository
+      .createQueryBuilder('client')
+      .where('client.isActive = :isActive', { isActive: true });
 
     // Search functionality
     if (search) {
-      queryBuilder.where(
+      queryBuilder.andWhere(
         '(client.firstName ILIKE :search OR client.lastName ILIKE :search OR client.email ILIKE :search OR client.phoneNumber ILIKE :search)',
         { search: `%${search}%` },
       );
@@ -100,7 +106,7 @@ export class ClientsService {
 
   async findOne(id: string): Promise<Client> {
     const client = await this.clientRepository.findOne({
-      where: { id },
+      where: { id, isActive: true },
       relations: ['loans'],
     });
 
@@ -113,7 +119,7 @@ export class ClientsService {
 
   async findByEmail(email: string): Promise<Client | null> {
     return this.clientRepository.findOne({
-      where: { email },
+      where: { email, isActive: true },
     });
   }
 
@@ -141,16 +147,18 @@ export class ClientsService {
 
     // Check if client has active loans
     if (client.loans && client.loans.length > 0) {
-      const hasActiveLoans = client.loans.some(loan => 
-        loan.status === LoanStatus.ACTIVE || loan.status === LoanStatus.APPROVED
+      const hasActiveLoans = client.loans.some(
+        loan => loan.status === LoanStatus.ACTIVE || loan.status === LoanStatus.APPROVED,
       );
       if (hasActiveLoans) {
         throw new ConflictException('Cannot delete client with active loans');
       }
     }
 
-    await this.clientRepository.remove(client);
-    this.logger.log(`Client deleted: ${client.firstName} ${client.lastName} (${id})`);
+    await this.clientRepository.update(id, { isActive: false });
+    this.logger.log(
+      `Client deactivated (soft deleted): ${client.firstName} ${client.lastName} (${id})`,
+    );
   }
 
   async getClientStats(): Promise<{
@@ -159,7 +167,9 @@ export class ClientsService {
     averageCreditScore: number;
     averageMonthlyIncome: number;
   }> {
-    const totalClients = await this.clientRepository.count();
+    const totalClients = await this.clientRepository.count({
+      where: { isActive: true },
+    });
 
     // New clients this month
     const firstDayOfMonth = new Date();
@@ -168,6 +178,7 @@ export class ClientsService {
 
     const newClientsThisMonth = await this.clientRepository.count({
       where: {
+        isActive: true,
         createdAt: MoreThanOrEqual(firstDayOfMonth),
       },
     });
@@ -176,14 +187,16 @@ export class ClientsService {
     const creditScoreResult = await this.clientRepository
       .createQueryBuilder('client')
       .select('AVG(client.creditScore)', 'average')
-      .where('client.creditScore IS NOT NULL')
+      .where('client.isActive = :isActive', { isActive: true })
+      .andWhere('client.creditScore IS NOT NULL')
       .getRawOne<{ average: string | null }>();
 
     // Average monthly income
     const incomeResult = await this.clientRepository
       .createQueryBuilder('client')
       .select('AVG(client.monthlyIncome)', 'average')
-      .where('client.monthlyIncome IS NOT NULL')
+      .where('client.isActive = :isActive', { isActive: true })
+      .andWhere('client.monthlyIncome IS NOT NULL')
       .getRawOne<{ average: string | null }>();
 
     return {
@@ -214,8 +227,9 @@ export class ClientsService {
   async searchClientsForLoan(searchTerm: string): Promise<Client[]> {
     return this.clientRepository
       .createQueryBuilder('client')
-      .where(
-        'client.firstName ILIKE :search OR client.lastName ILIKE :search OR client.email ILIKE :search'
+      .where('client.isActive = :isActive', { isActive: true })
+      .andWhere(
+        'client.firstName ILIKE :search OR client.lastName ILIKE :search OR client.email ILIKE :search',
       )
       .andWhere('client.monthlyIncome > 0') // Only show clients with income
       .setParameter('search', `%${searchTerm}%`)
@@ -230,7 +244,8 @@ export class ClientsService {
   async getEligibleClients(): Promise<Client[]> {
     return this.clientRepository
       .createQueryBuilder('client')
-      .where('client.creditScore >= :minScore', { minScore: 550 })
+      .where('client.isActive = :isActive', { isActive: true })
+      .andWhere('client.creditScore >= :minScore', { minScore: 550 })
       .andWhere('client.monthlyIncome >= :minIncome', { minIncome: 2000 })
       .orderBy('client.creditScore', 'DESC')
       .getMany();
@@ -246,7 +261,7 @@ export class ClientsService {
     riskLevel?: 'LOW' | 'MEDIUM' | 'HIGH';
   }> {
     const client = await this.findOne(clientId);
-    
+
     // Basic eligibility checks
     if (!client.isActive) {
       return {
@@ -272,9 +287,10 @@ export class ClientsService {
     }
 
     // Check for existing loans (if applicable)
-    const existingActiveLoans = client.loans?.filter(loan => 
-      loan.status === LoanStatus.ACTIVE || loan.status === LoanStatus.APPROVED
-    ) || [];
+    const existingActiveLoans =
+      client.loans?.filter(
+        loan => loan.status === LoanStatus.ACTIVE || loan.status === LoanStatus.APPROVED,
+      ) || [];
 
     if (existingActiveLoans.length >= 3) {
       return {
@@ -285,7 +301,7 @@ export class ClientsService {
 
     // Determine risk level
     let riskLevel: 'LOW' | 'MEDIUM' | 'HIGH' = 'MEDIUM';
-    
+
     if (client.creditScore) {
       if (client.creditScore >= 750) {
         riskLevel = 'LOW';
