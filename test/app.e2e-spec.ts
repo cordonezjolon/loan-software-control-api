@@ -2,6 +2,12 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import * as request from 'supertest';
 import { AppModule } from '@/app.module';
+import { ResponseInterceptor } from '@/shared/interceptors/response.interceptor';
+
+interface ApiEnvelope<TData> {
+  success: boolean;
+  data: TData;
+}
 
 describe('AppController (e2e)', () => {
   let app: INestApplication;
@@ -12,6 +18,8 @@ describe('AppController (e2e)', () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
+    app.setGlobalPrefix('api/v1');
+    app.useGlobalInterceptors(new ResponseInterceptor());
     await app.init();
   });
 
@@ -20,24 +28,30 @@ describe('AppController (e2e)', () => {
   });
 
   it('/ (GET)', () => {
-    return request(app.getHttpServer())
+    const server = app.getHttpServer() as Parameters<typeof request>[0];
+
+    return request(server)
       .get('/api/v1')
       .expect(200)
-      .expect((res) => {
-        expect(res.body.success).toBe(true);
-        expect(res.body.data.message).toBe('Loan Management API is running!');
+      .expect(res => {
+        const body = res.body as ApiEnvelope<{ message: string }>;
+        expect(body.success).toBe(true);
+        expect(body.data.message).toBe('Loan Management API is running!');
       });
   });
 
   it('/health (GET)', () => {
-    return request(app.getHttpServer())
+    const server = app.getHttpServer() as Parameters<typeof request>[0];
+
+    return request(server)
       .get('/api/v1/health')
       .expect(200)
-      .expect((res) => {
-        expect(res.body.success).toBe(true);
-        expect(res.body.data).toHaveProperty('message');
-        expect(res.body.data).toHaveProperty('version');
-        expect(res.body.data).toHaveProperty('timestamp');
+      .expect(res => {
+        const body = res.body as ApiEnvelope<Record<string, unknown>>;
+        expect(body.success).toBe(true);
+        expect(body.data).toHaveProperty('message');
+        expect(body.data).toHaveProperty('version');
+        expect(body.data).toHaveProperty('timestamp');
       });
   });
 });
