@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { InterestCalculationMethod, PrepaymentAction } from '../enums/interest-calculation.enum';
 
 export interface AmortizationEntry {
   installmentNumber: number;
@@ -40,7 +41,7 @@ export class LoanCalculationService {
     const monthlyRate = annualRate / 12;
     const numerator = principal * monthlyRate * Math.pow(1 + monthlyRate, termInMonths);
     const denominator = Math.pow(1 + monthlyRate, termInMonths) - 1;
-    
+
     const payment = numerator / denominator;
     return Math.round(payment * 100) / 100;
   }
@@ -101,9 +102,11 @@ export class LoanCalculationService {
     principal: number,
     annualRate: number,
     termInMonths: number,
-    startDate: Date
+    startDate: Date,
   ): LoanCalculationResult {
-    this.logger.log(`Calculating loan metrics for principal: $${principal}, rate: ${(annualRate * 100).toFixed(2)}%, term: ${termInMonths} months`);
+    this.logger.log(
+      `Calculating loan metrics for principal: $${principal}, rate: ${(annualRate * 100).toFixed(2)}%, term: ${termInMonths} months`,
+    );
 
     const monthlyPayment = this.calculateMonthlyPayment(principal, annualRate, termInMonths);
     const totalInterest = this.calculateTotalInterest(principal, monthlyPayment, termInMonths);
@@ -130,7 +133,7 @@ export class LoanCalculationService {
     principal: number,
     annualRate: number,
     termInMonths: number,
-    paymentsMade: number
+    paymentsMade: number,
   ): number {
     if (paymentsMade >= termInMonths) return 0;
     if (paymentsMade <= 0) return principal;
@@ -155,7 +158,7 @@ export class LoanCalculationService {
     principal: number,
     annualRate: number,
     termInMonths: number,
-    extraPayment: number
+    extraPayment: number,
   ): { monthsSaved: number; interestSaved: number } {
     const regularPayment = this.calculateMonthlyPayment(principal, annualRate, termInMonths);
     const totalPayment = regularPayment + extraPayment;
@@ -168,7 +171,7 @@ export class LoanCalculationService {
     while (balance > 0 && months < termInMonths) {
       const interestPayment = balance * monthlyRate;
       const principalPayment = Math.min(totalPayment - interestPayment, balance);
-      
+
       balance -= principalPayment;
       totalInterestPaid += interestPayment;
       months++;
@@ -176,7 +179,11 @@ export class LoanCalculationService {
       if (balance <= 0) break;
     }
 
-    const originalTotalInterest = this.calculateTotalInterest(principal, regularPayment, termInMonths);
+    const originalTotalInterest = this.calculateTotalInterest(
+      principal,
+      regularPayment,
+      termInMonths,
+    );
     const monthsSaved = termInMonths - months;
     const interestSaved = originalTotalInterest - totalInterestPaid;
 
@@ -195,7 +202,7 @@ export class LoanCalculationService {
     monthlyPayment: number,
     extraMonthlyPayment: number,
     lumpSumPayment: number,
-    originalPayoffDate: Date
+    originalPayoffDate: Date,
   ): {
     originalPayoffDate: string;
     newPayoffDate: string;
@@ -204,15 +211,23 @@ export class LoanCalculationService {
     totalExtraPayments: number;
     netSavings: number;
   } {
-    const { months, totalInterestPaid, totalExtraPayments } =
-      this.buildPayoffSchedule(currentBalance, interestRate, monthlyPayment, extraMonthlyPayment, lumpSumPayment);
+    const { months, totalInterestPaid, totalExtraPayments } = this.buildPayoffSchedule(
+      currentBalance,
+      interestRate,
+      monthlyPayment,
+      extraMonthlyPayment,
+      lumpSumPayment,
+    );
 
     const originalInterestFromNow = this.calcOriginalInterest(
-      currentBalance, interestRate, monthlyPayment, originalPayoffDate
+      currentBalance,
+      interestRate,
+      monthlyPayment,
+      originalPayoffDate,
     );
 
     const remainingMonthsFromOriginal = Math.ceil(
-      (originalPayoffDate.getTime() - new Date().getTime()) / (30 * 24 * 60 * 60 * 1000)
+      (originalPayoffDate.getTime() - new Date().getTime()) / (30 * 24 * 60 * 60 * 1000),
     );
 
     const newPayoffDate = new Date();
@@ -268,7 +283,7 @@ export class LoanCalculationService {
   ): number {
     const monthlyRate = interestRate / 12;
     const remainingMonths = Math.ceil(
-      (originalPayoffDate.getTime() - new Date().getTime()) / (30 * 24 * 60 * 60 * 1000)
+      (originalPayoffDate.getTime() - new Date().getTime()) / (30 * 24 * 60 * 60 * 1000),
     );
     let originalInterest = 0;
     let tempBalance = currentBalance;
@@ -279,4 +294,259 @@ export class LoanCalculationService {
       tempBalance -= principalPayment;
     }
     return originalInterest;
-  }}
+  }
+
+  // ─── Flat-Rate (Add-On Interest) ──────────────────────────────────────────
+
+  /**
+   * Calculate high-level metrics for a flat-rate loan.
+   * Total interest = P × annual_rate × (term / 12).
+   * Monthly installment = (P + total_interest) / term.
+   */
+  calculateFlatRateMetrics(
+    principal: number,
+    annualRate: number,
+    termInMonths: number,
+  ): { monthlyPayment: number; totalInterest: number; totalAmount: number } {
+    const totalInterest = Math.round(principal * annualRate * (termInMonths / 12) * 100) / 100;
+    const totalAmount = principal + totalInterest;
+    const monthlyPayment = Math.round((totalAmount / termInMonths) * 100) / 100;
+    return { monthlyPayment, totalInterest, totalAmount };
+  }
+
+  /**
+   * Generate a complete amortization schedule for a flat-rate loan.
+   * Every installment has the same total amount.
+   * Principal and interest components are equal each month.
+   */
+  generateFlatRateSchedule(loan: {
+    principal: number;
+    annualRate: number;
+    termInMonths: number;
+    startDate: Date;
+  }): AmortizationEntry[] {
+    const { principal, annualRate, termInMonths, startDate } = loan;
+    const { monthlyPayment, totalInterest } = this.calculateFlatRateMetrics(
+      principal,
+      annualRate,
+      termInMonths,
+    );
+    const monthlyPrincipal = Math.round((principal / termInMonths) * 100) / 100;
+    const monthlyInterest = Math.round((totalInterest / termInMonths) * 100) / 100;
+    const schedule: AmortizationEntry[] = [];
+
+    for (let i = 1; i <= termInMonths; i++) {
+      const remainingBalance = Math.max(
+        0,
+        Math.round((principal - monthlyPrincipal * i) * 100) / 100,
+      );
+      const dueDate = new Date(startDate);
+      dueDate.setMonth(dueDate.getMonth() + i);
+      schedule.push({
+        installmentNumber: i,
+        principalAmount: monthlyPrincipal,
+        interestAmount: monthlyInterest,
+        totalAmount: monthlyPayment,
+        remainingBalance,
+        dueDate,
+      });
+    }
+
+    return schedule;
+  }
+
+  /**
+   * Calculate the early-settlement figure for a flat-rate loan.
+   *
+   * The customer has already paid paidInstallments × monthlyInstallment
+   * (which included proportional interest).  To close early the bank
+   * forgives rebatePercentage of the REMAINING scheduled interest.
+   *
+   * settlementAmount = remainingPrincipal − rebateAmount
+   */
+  calculateFlatRateEarlySettlement(params: {
+    principal: number;
+    annualRate: number;
+    termInMonths: number;
+    paidInstallments: number;
+    rebatePercentage: number;
+  }): {
+    remainingInstallments: number;
+    remainingPrincipal: number;
+    scheduledRemainingInterest: number;
+    rebateAmount: number;
+    settlementAmount: number;
+  } {
+    const { principal, annualRate, termInMonths, paidInstallments, rebatePercentage } = params;
+    const remainingInstallments = termInMonths - paidInstallments;
+    const monthlyPrincipal = principal / termInMonths;
+    const monthlyInterest = (principal * annualRate) / 12;
+    const remainingPrincipal = Math.round(monthlyPrincipal * remainingInstallments * 100) / 100;
+    const scheduledRemainingInterest =
+      Math.round(monthlyInterest * remainingInstallments * 100) / 100;
+    const rebateAmount = Math.round(scheduledRemainingInterest * rebatePercentage * 100) / 100;
+    const settlementAmount = Math.max(
+      0,
+      Math.round((remainingPrincipal - rebateAmount) * 100) / 100,
+    );
+
+    return {
+      remainingInstallments,
+      remainingPrincipal,
+      scheduledRemainingInterest,
+      rebateAmount,
+      settlementAmount,
+    };
+  }
+
+  // ─── Declining-Balance Prepayment ─────────────────────────────────────────
+
+  /**
+   * Regenerate the future installment schedule after a principal prepayment
+   * on a declining-balance loan.
+   *
+   * REDUCE_TERM        – keep originalMonthlyPayment, solve for shorter term.
+   * REDUCE_INSTALLMENT – keep remainingMonths, compute lower PMT.
+   */
+  // eslint-disable-next-line max-lines-per-function
+  recalculateAfterPrepayment(params: {
+    newRemainingBalance: number;
+    annualRate: number;
+    remainingMonths: number;
+    startInstallmentNumber: number;
+    nextDueDate: Date;
+    prepaymentAction: PrepaymentAction;
+    originalMonthlyPayment: number;
+  }): AmortizationEntry[] {
+    const {
+      newRemainingBalance,
+      annualRate,
+      remainingMonths,
+      startInstallmentNumber,
+      nextDueDate,
+      prepaymentAction,
+      originalMonthlyPayment,
+    } = params;
+
+    if (newRemainingBalance <= 0) return [];
+
+    const { monthlyPayment, newTermMonths } = this.resolveNewPaymentTerms({
+      newRemainingBalance,
+      annualRate,
+      remainingMonths,
+      prepaymentAction,
+      originalMonthlyPayment,
+    });
+
+    return this.buildDecliningSchedule({
+      newRemainingBalance,
+      annualRate,
+      monthlyPayment,
+      newTermMonths,
+      startInstallmentNumber,
+      nextDueDate,
+    });
+  }
+
+  private resolveNewPaymentTerms(params: {
+    newRemainingBalance: number;
+    annualRate: number;
+    remainingMonths: number;
+    prepaymentAction: PrepaymentAction;
+    originalMonthlyPayment: number;
+  }): { monthlyPayment: number; newTermMonths: number } {
+    if (params.prepaymentAction === PrepaymentAction.REDUCE_INSTALLMENT) {
+      return {
+        monthlyPayment: this.calculateMonthlyPayment(
+          params.newRemainingBalance,
+          params.annualRate,
+          params.remainingMonths,
+        ),
+        newTermMonths: params.remainingMonths,
+      };
+    }
+    // REDUCE_TERM: keep same installment, solve for new n
+    return {
+      monthlyPayment: params.originalMonthlyPayment,
+      newTermMonths: this.solveRemainingTerms(
+        params.newRemainingBalance,
+        params.annualRate,
+        params.originalMonthlyPayment,
+      ),
+    };
+  }
+
+  private buildDecliningSchedule(params: {
+    newRemainingBalance: number;
+    annualRate: number;
+    monthlyPayment: number;
+    newTermMonths: number;
+    startInstallmentNumber: number;
+    nextDueDate: Date;
+  }): AmortizationEntry[] {
+    const {
+      newRemainingBalance,
+      annualRate,
+      monthlyPayment,
+      newTermMonths,
+      startInstallmentNumber,
+      nextDueDate,
+    } = params;
+    const monthlyRate = annualRate / 12;
+    const schedule: AmortizationEntry[] = [];
+    let balance = newRemainingBalance;
+
+    for (let i = 0; i < newTermMonths; i++) {
+      const interestPayment = balance * monthlyRate;
+      const principalPayment = Math.min(monthlyPayment - interestPayment, balance);
+      balance -= principalPayment;
+      if (i === newTermMonths - 1) balance = 0;
+      const dueDate = new Date(nextDueDate);
+      dueDate.setMonth(dueDate.getMonth() + i);
+      schedule.push({
+        installmentNumber: startInstallmentNumber + i,
+        principalAmount: Math.round(principalPayment * 100) / 100,
+        interestAmount: Math.round(interestPayment * 100) / 100,
+        totalAmount: Math.round((principalPayment + interestPayment) * 100) / 100,
+        remainingBalance: Math.max(0, Math.round(balance * 100) / 100),
+        dueDate,
+      });
+    }
+
+    return schedule;
+  }
+
+  /**
+   * Solve for the number of months required to pay off `balance`
+   * at `annualRate` making `monthlyPayment` each period.
+   * n = -ln(1 − r·B/PMT) / ln(1+r)
+   */
+  private solveRemainingTerms(balance: number, annualRate: number, monthlyPayment: number): number {
+    const monthlyRate = annualRate / 12;
+    if (monthlyRate === 0) return Math.ceil(balance / monthlyPayment);
+    const innerArg = 1 - (monthlyRate * balance) / monthlyPayment;
+    if (innerArg <= 0) return 1;
+    return Math.ceil(-Math.log(innerArg) / Math.log(1 + monthlyRate));
+  }
+
+  // ─── Unified dispatcher ───────────────────────────────────────────────────
+
+  /**
+   * Dispatch schedule generation to the correct method based on
+   * the loan's interest calculation method.
+   */
+  generateSchedule(
+    loan: { principal: number; interestRate: number; termInMonths: number; startDate: Date },
+    method: InterestCalculationMethod,
+  ): AmortizationEntry[] {
+    if (method === InterestCalculationMethod.FLAT_RATE) {
+      return this.generateFlatRateSchedule({
+        principal: loan.principal,
+        annualRate: loan.interestRate,
+        termInMonths: loan.termInMonths,
+        startDate: loan.startDate,
+      });
+    }
+    return this.generateAmortizationSchedule(loan);
+  }
+}

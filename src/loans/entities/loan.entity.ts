@@ -11,6 +11,12 @@ import {
 import { ApiProperty } from '@nestjs/swagger';
 import { Client } from '@/clients/entities/client.entity';
 import { LoanInstallment } from '@/installments/entities/loan-installment.entity';
+import {
+  InterestCalculationMethod,
+  PrepaymentAction,
+} from '@/shared/enums/interest-calculation.enum';
+
+export { InterestCalculationMethod, PrepaymentAction };
 
 export enum LoanType {
   PERSONAL = 'personal',
@@ -54,7 +60,7 @@ export class Loan {
   @ApiProperty({ description: 'Loan unique identifier' })
   id: string;
 
-  @ManyToOne(() => Client, (client) => client.loans)
+  @ManyToOne(() => Client, client => client.loans)
   @JoinColumn({ name: 'clientId' })
   client: Client;
 
@@ -118,7 +124,40 @@ export class Loan {
   @ApiProperty({ description: 'Loan end date' })
   endDate: Date;
 
-  @OneToMany(() => LoanInstallment, (installment) => installment.loan, {
+  @Column({
+    type: 'enum',
+    enum: InterestCalculationMethod,
+    default: InterestCalculationMethod.DECLINING_BALANCE,
+    nullable: true,
+  })
+  @ApiProperty({
+    description: 'Interest calculation method',
+    enum: InterestCalculationMethod,
+    default: InterestCalculationMethod.DECLINING_BALANCE,
+  })
+  interestCalculationMethod: InterestCalculationMethod;
+
+  @Column({ type: 'decimal', precision: 5, scale: 4, nullable: true })
+  @ApiProperty({
+    description: 'Fraction of remaining flat-rate interest forgiven on early settlement (0–1)',
+    required: false,
+  })
+  earlySettlementRebatePercentage?: number;
+
+  @Column({
+    type: 'enum',
+    enum: PrepaymentAction,
+    nullable: true,
+    default: PrepaymentAction.REDUCE_TERM,
+  })
+  @ApiProperty({
+    description: 'How principal prepayments affect the remaining schedule',
+    enum: PrepaymentAction,
+    required: false,
+  })
+  prepaymentAction?: PrepaymentAction;
+
+  @OneToMany(() => LoanInstallment, installment => installment.loan, {
     cascade: true,
   })
   installments: LoanInstallment[];

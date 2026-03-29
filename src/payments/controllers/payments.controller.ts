@@ -15,6 +15,10 @@ import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger'
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { PaymentsService } from '../services/payments.service';
 import { CreatePaymentDto } from '../dto/create-payment.dto';
+import { CreateAdvancePaymentDto } from '../dto/create-advance-payment.dto';
+import { AdvancePaymentResultDto } from '../dto/advance-payment-result.dto';
+import { CreatePrepaymentDto } from '../dto/create-prepayment.dto';
+import { PrepaymentResultDto } from '../dto/prepayment-result.dto';
 import { LoanPayment, PaymentMethod, PaymentStatus } from '../entities/loan-payment.entity';
 
 @ApiTags('payments')
@@ -28,6 +32,14 @@ export class PaymentsController {
   @ApiOperation({ summary: 'Register a payment for an installment' })
   async create(@Body() dto: CreatePaymentDto): Promise<LoanPayment> {
     return this.paymentsService.create(dto);
+  }
+
+  @Post('advance')
+  @ApiOperation({ summary: 'Register a lump-sum advance payment for a loan' })
+  async createAdvancePayment(
+    @Body() dto: CreateAdvancePaymentDto,
+  ): Promise<AdvancePaymentResultDto> {
+    return this.paymentsService.createAdvancePayment(dto);
   }
 
   @Get()
@@ -73,5 +85,16 @@ export class PaymentsController {
     @Body('reason') reason?: string,
   ): Promise<LoanPayment> {
     return this.paymentsService.cancel(id, reason);
+  }
+
+  @Post('prepayment')
+  @ApiOperation({
+    summary: 'Register a principal prepayment for a declining-balance loan',
+    description:
+      'Reduces the outstanding principal and regenerates the remaining installment schedule. ' +
+      'Flat-rate loans must use the advance payment endpoint instead.',
+  })
+  async createPrepayment(@Body() dto: CreatePrepaymentDto): Promise<PrepaymentResultDto> {
+    return this.paymentsService.createPrepayment(dto);
   }
 }

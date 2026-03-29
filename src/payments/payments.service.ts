@@ -2,7 +2,10 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between, DataSource, QueryRunner } from 'typeorm';
 import { LoanPayment, PaymentStatus, PaymentMethod } from './entities/loan-payment.entity';
-import { LoanInstallment, InstallmentStatus } from '../installments/entities/loan-installment.entity';
+import {
+  LoanInstallment,
+  InstallmentStatus,
+} from '../installments/entities/loan-installment.entity';
 import { CreatePaymentDto } from './dto/create-payment.dto';
 import { FindPaymentsDto, UpdatePaymentDto, BatchPaymentDto } from './dto/payment-filters.dto';
 import { InstallmentsService } from '../installments/installments.service';
@@ -37,7 +40,9 @@ export class PaymentsService {
       });
 
       if (!installment) {
-        throw new NotFoundException(`Installment with ID ${createPaymentDto.installmentId} not found`);
+        throw new NotFoundException(
+          `Installment with ID ${createPaymentDto.installmentId} not found`,
+        );
       }
 
       // Validate payment amount
@@ -47,7 +52,7 @@ export class PaymentsService {
 
       if (createPaymentDto.amount > remainingAmount) {
         throw new BadRequestException(
-          `Payment amount $${createPaymentDto.amount} exceeds remaining balance $${remainingAmount}`
+          `Payment amount $${createPaymentDto.amount} exceeds remaining balance $${remainingAmount}`,
         );
       }
 
@@ -93,7 +98,7 @@ export class PaymentsService {
    */
   async createBatch(batchPaymentDto: BatchPaymentDto): Promise<{
     successful: LoanPayment[];
-    failed: Array<{ payment: CreatePaymentDto; error: string; }>;
+    failed: Array<{ payment: CreatePaymentDto; error: string }>;
     summary: {
       total: number;
       successful: number;
@@ -103,7 +108,7 @@ export class PaymentsService {
   }> {
     const results = {
       successful: [] as LoanPayment[],
-      failed: [] as Array<{ payment: CreatePaymentDto; error: string; }>,
+      failed: [] as Array<{ payment: CreatePaymentDto; error: string }>,
       summary: {
         total: batchPaymentDto.payments.length,
         successful: 0,
@@ -116,9 +121,9 @@ export class PaymentsService {
       try {
         const payment = await this.create({
           ...paymentData,
-          notes: paymentData.notes ? 
-            `${paymentData.notes}${batchPaymentDto.batchNotes ? ` | Batch: ${batchPaymentDto.batchNotes}` : ''}` :
-            batchPaymentDto.batchNotes,
+          notes: paymentData.notes
+            ? `${paymentData.notes}${batchPaymentDto.batchNotes ? ` | Batch: ${batchPaymentDto.batchNotes}` : ''}`
+            : batchPaymentDto.batchNotes,
         });
 
         results.successful.push(payment);
@@ -204,7 +209,7 @@ export class PaymentsService {
     if (search) {
       queryBuilder.andWhere(
         '(payment.referenceNumber ILIKE :search OR payment.notes ILIKE :search)',
-        { search: `%${search}%` }
+        { search: `%${search}%` },
       );
     }
 
@@ -295,7 +300,9 @@ export class PaymentsService {
     const payment = await this.findOne(id);
 
     if (payment.status !== PaymentStatus.PENDING) {
-      throw new BadRequestException(`Cannot mark payment as failed with current status ${payment.status}`);
+      throw new BadRequestException(
+        `Cannot mark payment as failed with current status ${payment.status}`,
+      );
     }
 
     await this.paymentRepository.update(id, {
@@ -310,7 +317,12 @@ export class PaymentsService {
    * Get payment statistics for reporting
    */
   // eslint-disable-next-line max-lines-per-function
-  async getPaymentStatistics(loanId?: string, clientId?: string, dateFrom?: string, dateTo?: string): Promise<{
+  async getPaymentStatistics(
+    loanId?: string,
+    clientId?: string,
+    dateFrom?: string,
+    dateTo?: string,
+  ): Promise<{
     totalPayments: number;
     totalAmount: number;
     averagePaymentAmount: number;
@@ -350,20 +362,26 @@ export class PaymentsService {
     const averagePaymentAmount = totalPayments > 0 ? totalAmount / totalPayments : 0;
 
     // Group by payment method
-    const paymentsByMethod = payments.reduce((acc, payment) => {
-      if (!acc[payment.paymentMethod]) {
-        acc[payment.paymentMethod] = { count: 0, amount: 0 };
-      }
-      acc[payment.paymentMethod].count++;
-      acc[payment.paymentMethod].amount += Number(payment.amount);
-      return acc;
-    }, {} as Record<PaymentMethod, { count: number; amount: number }>);
+    const paymentsByMethod = payments.reduce(
+      (acc, payment) => {
+        if (!acc[payment.paymentMethod]) {
+          acc[payment.paymentMethod] = { count: 0, amount: 0 };
+        }
+        acc[payment.paymentMethod].count++;
+        acc[payment.paymentMethod].amount += Number(payment.amount);
+        return acc;
+      },
+      {} as Record<PaymentMethod, { count: number; amount: number }>,
+    );
 
     // Group by status
-    const paymentsByStatus = payments.reduce((acc, payment) => {
-      acc[payment.status] = (acc[payment.status] || 0) + 1;
-      return acc;
-    }, {} as Record<PaymentStatus, number>);
+    const paymentsByStatus = payments.reduce(
+      (acc, payment) => {
+        acc[payment.status] = (acc[payment.status] || 0) + 1;
+        return acc;
+      },
+      {} as Record<PaymentStatus, number>,
+    );
 
     // Monthly trend
     const monthlyTrend = this.calculateMonthlyTrend(payments);
@@ -388,7 +406,11 @@ export class PaymentsService {
    * Process refund for a payment
    */
   // eslint-disable-next-line max-lines-per-function
-  async processRefund(paymentId: string, refundAmount: number, reason: string): Promise<{
+  async processRefund(
+    paymentId: string,
+    refundAmount: number,
+    reason: string,
+  ): Promise<{
     originalPayment: LoanPayment;
     refundPayment: LoanPayment;
   }> {
@@ -430,13 +452,15 @@ export class PaymentsService {
 
       // Update original payment notes
       await queryRunner.manager.update(LoanPayment, paymentId, {
-        notes: originalPayment.notes ? 
-          `${originalPayment.notes} | Refunded $${refundAmount}: ${reason}` :
-          `Refunded $${refundAmount}: ${reason}`,
+        notes: originalPayment.notes
+          ? `${originalPayment.notes} | Refunded $${refundAmount}: ${reason}`
+          : `Refunded $${refundAmount}: ${reason}`,
       });
 
       // Update installment status if necessary
-      await this.recalculateInstallmentStatus(queryRunner, originalPayment.installment.id);
+      if (originalPayment.installment?.id) {
+        await this.recalculateInstallmentStatus(queryRunner, originalPayment.installment.id);
+      }
 
       await queryRunner.commitTransaction();
 
@@ -455,6 +479,7 @@ export class PaymentsService {
   /**
    * Get daily payment collections report
    */
+  // eslint-disable-next-line max-lines-per-function
   async getDailyCollections(date: string): Promise<{
     date: string;
     totalCollections: number;
@@ -478,17 +503,24 @@ export class PaymentsService {
     const totalCollections = payments.length;
     const totalAmount = payments.reduce((sum, p) => sum + Number(p.amount), 0);
 
-    const paymentsByMethod = payments.reduce((acc, payment) => {
-      if (!acc[payment.paymentMethod]) {
-        acc[payment.paymentMethod] = { count: 0, amount: 0 };
-      }
-      acc[payment.paymentMethod].count++;
-      acc[payment.paymentMethod].amount += Number(payment.amount);
-      return acc;
-    }, {} as Record<PaymentMethod, { count: number; amount: number }>);
+    const paymentsByMethod = payments.reduce(
+      (acc, payment) => {
+        if (!acc[payment.paymentMethod]) {
+          acc[payment.paymentMethod] = { count: 0, amount: 0 };
+        }
+        acc[payment.paymentMethod].count++;
+        acc[payment.paymentMethod].amount += Number(payment.amount);
+        return acc;
+      },
+      {} as Record<PaymentMethod, { count: number; amount: number }>,
+    );
 
-    const uniqueLoansBenefited = new Set(payments.map(p => p.installment.loan.id)).size;
-    const uniqueClientsBenefited = new Set(payments.map(p => p.installment.loan.client?.id).filter(Boolean)).size;
+    const uniqueLoansBenefited = new Set(
+      payments.map(p => p.installment?.loan?.id).filter((id): id is string => Boolean(id)),
+    ).size;
+    const uniqueClientsBenefited = new Set(
+      payments.map(p => p.installment?.loan?.client?.id).filter((id): id is string => Boolean(id)),
+    ).size;
 
     return {
       date,
@@ -516,7 +548,10 @@ export class PaymentsService {
   /**
    * Recalculate installment status after payment changes
    */
-  private async recalculateInstallmentStatus(queryRunner: QueryRunner, installmentId: string): Promise<void> {
+  private async recalculateInstallmentStatus(
+    queryRunner: QueryRunner,
+    installmentId: string,
+  ): Promise<void> {
     const installment = await queryRunner.manager.findOne(LoanInstallment, {
       where: { id: installmentId },
       relations: ['payments'],
@@ -542,16 +577,21 @@ export class PaymentsService {
   /**
    * Calculate monthly trend from payments
    */
-  private calculateMonthlyTrend(payments: LoanPayment[]): Array<{ month: string; count: number; amount: number }> {
-    const monthlyData = payments.reduce((acc, payment) => {
-      const month = payment.paymentDate.toISOString().substring(0, 7); // YYYY-MM format
-      if (!acc[month]) {
-        acc[month] = { count: 0, amount: 0 };
-      }
-      acc[month].count++;
-      acc[month].amount += Number(payment.amount);
-      return acc;
-    }, {} as Record<string, { count: number; amount: number }>);
+  private calculateMonthlyTrend(
+    payments: LoanPayment[],
+  ): Array<{ month: string; count: number; amount: number }> {
+    const monthlyData = payments.reduce(
+      (acc, payment) => {
+        const month = payment.paymentDate.toISOString().substring(0, 7); // YYYY-MM format
+        if (!acc[month]) {
+          acc[month] = { count: 0, amount: 0 };
+        }
+        acc[month].count++;
+        acc[month].amount += Number(payment.amount);
+        return acc;
+      },
+      {} as Record<string, { count: number; amount: number }>,
+    );
 
     return Object.entries(monthlyData)
       .map(([month, data]) => ({ month, ...data }))

@@ -12,7 +12,12 @@ import {
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { LoanType, LoanPurpose } from '../entities/loan.entity';
+import {
+  LoanType,
+  LoanPurpose,
+  InterestCalculationMethod,
+  PrepaymentAction,
+} from '../entities/loan.entity';
 import {
   LOAN_MIN_PRINCIPAL,
   LOAN_MAX_PRINCIPAL,
@@ -158,4 +163,43 @@ export class CreateLoanDto {
     maxLength: 1000,
   })
   notes?: string;
+
+  @IsOptional()
+  @IsEnum(InterestCalculationMethod)
+  @ApiPropertyOptional({
+    description:
+      'Interest calculation method. FLAT_RATE: fixed interest on original principal; ' +
+      'DECLINING_BALANCE: amortising (standard PMT formula). Defaults to DECLINING_BALANCE.',
+    enum: InterestCalculationMethod,
+    default: InterestCalculationMethod.DECLINING_BALANCE,
+  })
+  interestCalculationMethod?: InterestCalculationMethod;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(1)
+  @Transform(({ value }) => (value !== undefined ? parseFloat(value as string) : undefined))
+  @ApiPropertyOptional({
+    description:
+      'Fraction (0–1) of remaining scheduled interest to forgive on early settlement. ' +
+      'Only relevant for FLAT_RATE loans. E.g. 0.5 means 50 % rebate.',
+    minimum: 0,
+    maximum: 1,
+    example: 0.5,
+    type: 'number',
+    format: 'decimal',
+  })
+  earlySettlementRebatePercentage?: number;
+
+  @IsOptional()
+  @IsEnum(PrepaymentAction)
+  @ApiPropertyOptional({
+    description:
+      'How to adjust the schedule when the borrower makes a principal prepayment ' +
+      '(declining-balance loans only). Defaults to REDUCE_TERM.',
+    enum: PrepaymentAction,
+    default: PrepaymentAction.REDUCE_TERM,
+  })
+  prepaymentAction?: PrepaymentAction;
 }

@@ -1,18 +1,38 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Loan, LoanStatus, LoanType } from './entities/loan.entity';
+import {
+  Loan,
+  LoanStatus,
+  LoanType,
+  InterestCalculationMethod,
+  PrepaymentAction,
+} from './entities/loan.entity';
 import { CreateLoanDto } from './dto/create-loan.dto';
 import { UpdateLoanDto } from './dto/update-loan.dto';
 import { FindLoansDto } from './dto/find-loans.dto';
-import { LoanCalculationDto, LoanCalculationResultDto, EarlyPayoffCalculationDto, EarlyPayoffResultDto } from './dto/loan-calculation.dto';
+import {
+  LoanCalculationDto,
+  LoanCalculationResultDto,
+  EarlyPayoffCalculationDto,
+  EarlyPayoffResultDto,
+} from './dto/loan-calculation.dto';
+import { EarlySettlementPreviewDto, ProcessEarlySettlementDto } from './dto/early-settlement.dto';
 import { LoanCalculationService } from '../shared/services/loan-calculation.service';
 import { InterestRateService } from '../shared/services/interest-rate.service';
 import { ClientsService } from '../clients/services/clients.service';
 import { PaginatedResult } from '../shared/interfaces/paginated-result.interface';
 import { Client } from '../clients/entities/client.entity';
-import { LoanInstallment } from '../installments/entities/loan-installment.entity';
-import { InstallmentStatus } from '../installments/entities/loan-installment.entity';
+import {
+  LoanInstallment,
+  InstallmentStatus,
+} from '../installments/entities/loan-installment.entity';
+import {
+  LoanPayment,
+  PaymentMethod,
+  PaymentStatus,
+  PaymentType,
+} from '../payments/entities/loan-payment.entity';
 
 @Injectable()
 export class LoansService {
@@ -21,6 +41,8 @@ export class LoansService {
     private readonly loanRepository: Repository<Loan>,
     @InjectRepository(LoanInstallment)
     private readonly installmentRepository: Repository<LoanInstallment>,
+    @InjectRepository(LoanPayment)
+    private readonly paymentRepository: Repository<LoanPayment>,
     private readonly loanCalculationService: LoanCalculationService,
     private readonly interestRateService: InterestRateService,
     private readonly clientsService: ClientsService,
@@ -38,22 +60,27 @@ export class LoansService {
     }
 
     // Check client eligibility for new loan
-    const eligibilityResult = await this.clientsService.checkLoanEligibility(createLoanDto.clientId);
+    const eligibilityResult = await this.clientsService.checkLoanEligibility(
+      createLoanDto.clientId,
+    );
     if (!eligibilityResult.isEligible) {
-      throw new BadRequestException(`Client is not eligible for a new loan: ${eligibilityResult.reason}`);
+      throw new BadRequestException(
+        `Client is not eligible for a new loan: ${eligibilityResult.reason}`,
+      );
     }
 
     // Get optimized interest rate based on client risk profile
     const optimizedRate = await this.calculateOptimizedInterestRate(createLoanDto, client);
 
-    // Calculate all loan metrics
-    const calculationResult = this.calculateLoanMetrics({
-      principal: createLoanDto.principal,
-      interestRate: optimizedRate,
-      termInMonths: createLoanDto.termInMonths,
-      loanType: createLoanDto.loanType,
-      downPayment: createLoanDto.downPayment,
-    });
+    // Compute financial totals (dispatch based on calculation method)
+    const method =
+      createLoanDto.interestCalculationMethod ?? InterestCalculationMethod.DECLINING_BALANCE;
+    const financials = this.computeLoanFinancials(
+      createLoanDto.principal,
+      optimizedRate,
+      createLoanDto.termInMonths,
+      method,
+    );
 
     // Calculate end date
     const startDate = new Date(createLoanDto.startDate);
@@ -66,9 +93,9 @@ export class LoansService {
       principal: createLoanDto.principal,
       interestRate: optimizedRate,
       termInMonths: createLoanDto.termInMonths,
-      monthlyPayment: calculationResult.monthlyPayment,
-      totalInterest: calculationResult.totalInterest,
-      totalAmount: calculationResult.totalAmount,
+      monthlyPayment: financials.monthlyPayment,
+      totalInterest: financials.totalInterest,
+      totalAmount: financials.totalAmount,
       loanType: createLoanDto.loanType,
       loanPurpose: createLoanDto.loanPurpose,
       startDate,
@@ -77,6 +104,9 @@ export class LoansService {
       downPayment: createLoanDto.downPayment,
       loanOfficerId: createLoanDto.loanOfficerId,
       status: LoanStatus.PENDING,
+      interestCalculationMethod: method,
+      earlySettlementRebatePercentage: createLoanDto.earlySettlementRebatePercentage,
+      prepaymentAction: createLoanDto.prepaymentAction ?? PrepaymentAction.REDUCE_TERM,
     });
 
     const savedLoan = await this.loanRepository.save(loan);
@@ -154,7 +184,7 @@ export class LoansService {
     if (search) {
       queryBuilder.andWhere(
         '(client.firstName ILIKE :search OR client.lastName ILIKE :search OR loan.notes ILIKE :search)',
-        { search: `%${search}%` }
+        { search: `%${search}%` },
       );
     }
 
@@ -267,7 +297,9 @@ export class LoansService {
 
     await this.loanRepository.update(id, {
       status: LoanStatus.REJECTED,
-      notes: loan.notes ? `${loan.notes}\n\nRejection reason: ${reason}` : `Rejection reason: ${reason}`,
+      notes: loan.notes
+        ? `${loan.notes}\n\nRejection reason: ${reason}`
+        : `Rejection reason: ${reason}`,
     });
 
     return this.findOne(id);
@@ -310,13 +342,13 @@ export class LoansService {
     const monthlyPayment = this.loanCalculationService.calculateMonthlyPayment(
       principal,
       effectiveRate,
-      termInMonths
+      termInMonths,
     );
 
     const totalInterest = this.loanCalculationService.calculateTotalInterest(
       principal,
       monthlyPayment,
-      termInMonths
+      termInMonths,
     );
 
     const totalAmount = principal + totalInterest;
@@ -368,22 +400,24 @@ export class LoansService {
   /**
    * Calculate early payoff scenarios
    */
-  async calculateEarlyPayoff(calculationDto: EarlyPayoffCalculationDto): Promise<EarlyPayoffResultDto> {
+  async calculateEarlyPayoff(
+    calculationDto: EarlyPayoffCalculationDto,
+  ): Promise<EarlyPayoffResultDto> {
     const loan = await this.findOne(calculationDto.loanId);
-    
+
     if (loan.status !== LoanStatus.ACTIVE) {
       throw new BadRequestException('Early payoff calculation is only available for active loans');
     }
 
     const currentBalance = await this.getCurrentLoanBalance(loan.id);
-    
+
     const earlyPayoffResult = this.loanCalculationService.calculateEarlyPayoff(
       currentBalance,
       loan.interestRate,
       loan.monthlyPayment,
       calculationDto.extraMonthlyPayment || 0,
       calculationDto.lumpSumPayment || 0,
-      loan.endDate
+      loan.endDate,
     );
 
     return earlyPayoffResult;
@@ -394,7 +428,7 @@ export class LoansService {
    */
   async getCurrentLoanBalance(loanId: string): Promise<number> {
     const loan = await this.findOne(loanId);
-    
+
     // Find the last paid installment
     const lastPaidInstallment = await this.installmentRepository
       .createQueryBuilder('installment')
@@ -436,25 +470,38 @@ export class LoansService {
     const averageLoanAmount = totalLoans > 0 ? totalPrincipal / totalLoans : 0;
 
     // Count by status
-    const loansByStatus = loans.reduce((acc, loan) => {
-      acc[loan.status] = (acc[loan.status] || 0) + 1;
-      return acc;
-    }, {} as Record<LoanStatus, number>);
+    const loansByStatus = loans.reduce(
+      (acc, loan) => {
+        acc[loan.status] = (acc[loan.status] || 0) + 1;
+        return acc;
+      },
+      {} as Record<LoanStatus, number>,
+    );
 
     // Count by type
-    const loansByType = loans.reduce((acc, loan) => {
-      acc[loan.loanType] = (acc[loan.loanType] || 0) + 1;
-      return acc;
-    }, {} as Record<LoanType, number>);
+    const loansByType = loans.reduce(
+      (acc, loan) => {
+        acc[loan.loanType] = (acc[loan.loanType] || 0) + 1;
+        return acc;
+      },
+      {} as Record<LoanType, number>,
+    );
 
     // Calculate average interest rate
-    const averageInterestRate = totalLoans > 0 
-      ? loans.reduce((sum, loan) => sum + Number(loan.interestRate), 0) / totalLoans
-      : 0;
+    const averageInterestRate =
+      totalLoans > 0
+        ? loans.reduce((sum, loan) => sum + Number(loan.interestRate), 0) / totalLoans
+        : 0;
 
     // Calculate approval rate
-    const approvedCount = (loansByStatus[LoanStatus.APPROVED] || 0) + (loansByStatus[LoanStatus.ACTIVE] || 0) + (loansByStatus[LoanStatus.COMPLETED] || 0);
-    const processedCount = totalLoans - (loansByStatus[LoanStatus.PENDING] || 0) - (loansByStatus[LoanStatus.UNDER_REVIEW] || 0);
+    const approvedCount =
+      (loansByStatus[LoanStatus.APPROVED] || 0) +
+      (loansByStatus[LoanStatus.ACTIVE] || 0) +
+      (loansByStatus[LoanStatus.COMPLETED] || 0);
+    const processedCount =
+      totalLoans -
+      (loansByStatus[LoanStatus.PENDING] || 0) -
+      (loansByStatus[LoanStatus.UNDER_REVIEW] || 0);
     const approvalRate = processedCount > 0 ? (approvedCount / processedCount) * 100 : 0;
 
     return {
@@ -469,15 +516,19 @@ export class LoansService {
   }
 
   /**
-   * Generate installment schedule for a loan
+   * Generate installment schedule for a loan (dispatches by calculation method).
    */
   private async generateInstallmentSchedule(loan: Loan): Promise<void> {
-    const schedule = this.loanCalculationService.generateAmortizationSchedule({
-      principal: loan.principal,
-      interestRate: loan.interestRate,
-      termInMonths: loan.termInMonths,
-      startDate: new Date(loan.startDate),
-    });
+    const method = loan.interestCalculationMethod ?? InterestCalculationMethod.DECLINING_BALANCE;
+    const schedule = this.loanCalculationService.generateSchedule(
+      {
+        principal: loan.principal,
+        interestRate: loan.interestRate,
+        termInMonths: loan.termInMonths,
+        startDate: new Date(loan.startDate),
+      },
+      method,
+    );
 
     const installments = schedule.map(entry =>
       this.installmentRepository.create({
@@ -489,16 +540,189 @@ export class LoansService {
         remainingBalance: entry.remainingBalance,
         dueDate: entry.dueDate,
         status: InstallmentStatus.PENDING,
-      })
+      }),
     );
 
     await this.installmentRepository.save(installments);
   }
 
   /**
+   * Compute monthly payment, total interest and total amount based on
+   * the configured calculation method — without persisting anything.
+   */
+  private computeLoanFinancials(
+    principal: number,
+    interestRate: number,
+    termInMonths: number,
+    method: InterestCalculationMethod,
+  ): { monthlyPayment: number; totalInterest: number; totalAmount: number } {
+    if (method === InterestCalculationMethod.FLAT_RATE) {
+      return this.loanCalculationService.calculateFlatRateMetrics(
+        principal,
+        interestRate,
+        termInMonths,
+      );
+    }
+    const monthlyPayment = this.loanCalculationService.calculateMonthlyPayment(
+      principal,
+      interestRate,
+      termInMonths,
+    );
+    const totalInterest = this.loanCalculationService.calculateTotalInterest(
+      principal,
+      monthlyPayment,
+      termInMonths,
+    );
+    return { monthlyPayment, totalInterest, totalAmount: principal + totalInterest };
+  }
+
+  // ─── Early Settlement ──────────────────────────────────────────────────────
+
+  /**
+   * Preview the settlement amount due if the borrower pays off the loan today.
+   * For FLAT_RATE loans: forgives a fraction of remaining scheduled interest.
+   * For DECLINING_BALANCE loans: settlement = outstanding principal (no rebate).
+   */
+  async previewEarlySettlement(loanId: string): Promise<EarlySettlementPreviewDto> {
+    const loan = await this.loadLoanForSettlement(loanId);
+    const paidCount = loan.installments.filter(i => i.status === InstallmentStatus.PAID).length;
+    return this.buildSettlementPreview(loan, paidCount);
+  }
+
+  private async loadLoanForSettlement(loanId: string): Promise<Loan> {
+    const loan = await this.loanRepository.findOne({
+      where: { id: loanId },
+      relations: ['installments'],
+    });
+    if (!loan) throw new NotFoundException(`Loan ${loanId} not found`);
+    if (loan.status !== LoanStatus.ACTIVE) {
+      throw new BadRequestException('Early settlement is only available for active loans');
+    }
+    return loan;
+  }
+
+  private buildSettlementPreview(loan: Loan, paidInstallments: number): EarlySettlementPreviewDto {
+    const method = loan.interestCalculationMethod ?? InterestCalculationMethod.DECLINING_BALANCE;
+    const rebatePercentage = Number(loan.earlySettlementRebatePercentage ?? 0);
+
+    if (method === InterestCalculationMethod.FLAT_RATE) {
+      return this.buildFlatRatePreview(loan, paidInstallments, rebatePercentage);
+    }
+    return this.buildDecliningBalancePreview(loan, paidInstallments);
+  }
+
+  private buildFlatRatePreview(
+    loan: Loan,
+    paidInstallments: number,
+    rebatePercentage: number,
+  ): EarlySettlementPreviewDto {
+    const settlement = this.loanCalculationService.calculateFlatRateEarlySettlement({
+      principal: Number(loan.principal),
+      annualRate: Number(loan.interestRate),
+      termInMonths: loan.termInMonths,
+      paidInstallments,
+      rebatePercentage,
+    });
+    return {
+      loanId: loan.id,
+      interestCalculationMethod: InterestCalculationMethod.FLAT_RATE,
+      paidInstallments,
+      remainingInstallments: settlement.remainingInstallments,
+      remainingPrincipal: settlement.remainingPrincipal,
+      scheduledRemainingInterest: settlement.scheduledRemainingInterest,
+      rebatePercentage,
+      rebateAmount: settlement.rebateAmount,
+      settlementAmount: settlement.settlementAmount,
+      previewDate: new Date().toISOString().split('T')[0],
+    };
+  }
+
+  private buildDecliningBalancePreview(
+    loan: Loan,
+    paidInstallments: number,
+  ): EarlySettlementPreviewDto {
+    const remainingInstallments = loan.termInMonths - paidInstallments;
+    const lastPaid = loan.installments
+      .filter(i => i.status === InstallmentStatus.PAID)
+      .sort((a, b) => b.installmentNumber - a.installmentNumber)
+      .at(0);
+    const remainingPrincipal = lastPaid
+      ? Number(lastPaid.remainingBalance)
+      : Number(loan.principal);
+
+    return {
+      loanId: loan.id,
+      interestCalculationMethod: InterestCalculationMethod.DECLINING_BALANCE,
+      paidInstallments,
+      remainingInstallments,
+      remainingPrincipal,
+      scheduledRemainingInterest: 0,
+      rebatePercentage: 0,
+      rebateAmount: 0,
+      settlementAmount: remainingPrincipal,
+      previewDate: new Date().toISOString().split('T')[0],
+    };
+  }
+
+  /**
+   * Execute early settlement: records a SETTLEMENT payment, marks all
+   * remaining installments as PAID and closes the loan.
+   */
+  async settleEarly(
+    loanId: string,
+    dto: ProcessEarlySettlementDto,
+  ): Promise<EarlySettlementPreviewDto> {
+    const loan = await this.loadLoanForSettlement(loanId);
+    const paidCount = loan.installments.filter(i => i.status === InstallmentStatus.PAID).length;
+    const preview = this.buildSettlementPreview(loan, paidCount);
+
+    await this.paymentRepository.manager.transaction(async manager => {
+      await this.persistSettlementPayment(manager, loan, dto, preview.settlementAmount);
+      await this.markRemainingInstallmentsPaid(manager, loan.installments);
+      await manager.getRepository(Loan).update(loan.id, { status: LoanStatus.COMPLETED });
+    });
+
+    return { ...preview, previewDate: new Date().toISOString().split('T')[0] };
+  }
+
+  private async persistSettlementPayment(
+    manager: import('typeorm').EntityManager,
+    loan: Loan,
+    dto: ProcessEarlySettlementDto,
+    amount: number,
+  ): Promise<void> {
+    const paymentRepo = manager.getRepository(LoanPayment);
+    const payment = paymentRepo.create({
+      loanId: loan.id,
+      amount,
+      paymentMethod: dto.paymentMethod as PaymentMethod,
+      paymentDate: new Date(dto.paymentDate),
+      referenceNumber: dto.referenceNumber,
+      notes: dto.notes,
+      status: PaymentStatus.COMPLETED,
+      paymentType: PaymentType.SETTLEMENT,
+    });
+    await paymentRepo.save(payment);
+  }
+
+  private async markRemainingInstallmentsPaid(
+    manager: import('typeorm').EntityManager,
+    installments: LoanInstallment[],
+  ): Promise<void> {
+    const repo = manager.getRepository(LoanInstallment);
+    const unpaid = installments.filter(i => i.status !== InstallmentStatus.PAID);
+    for (const inst of unpaid) {
+      await repo.update(inst.id, { status: InstallmentStatus.PAID });
+    }
+  }
+
+  /**
    * Calculate optimized interest rate based on client data and loan details
    */
-  private async calculateOptimizedInterestRate(createLoanDto: CreateLoanDto, client: Client): Promise<number> {
+  private async calculateOptimizedInterestRate(
+    createLoanDto: CreateLoanDto,
+    client: Client,
+  ): Promise<number> {
     // Get base rate for loan type
     let baseRate = createLoanDto.interestRate;
 
