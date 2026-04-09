@@ -418,7 +418,7 @@ export class PaymentsService {
       prepaymentAction: action,
       originalMonthlyPayment: Number(loan.monthlyPayment),
     });
-    await this.persistPrepaymentTransaction(dto, loan, pending, newSchedule);
+    await this.persistPrepaymentTransaction(dto, loan, pending, newBalance, newSchedule);
     return this.assemblePrepaymentResult(
       dto,
       loan,
@@ -477,12 +477,18 @@ export class PaymentsService {
     dto: CreatePrepaymentDto,
     loan: Loan,
     pending: LoanInstallment[],
+    newBalance: number,
     newSchedule: AmortizationEntry[],
   ): Promise<void> {
     await this.paymentRepository.manager.transaction(async manager => {
       await this.savePrepaymentRecord(manager, dto, loan);
       await this.deletePendingInstallments(manager, pending);
-      await this.saveNewInstallmentSchedule(manager, loan, newSchedule);
+      if (newBalance > 0) {
+        await this.saveNewInstallmentSchedule(manager, loan, newSchedule);
+      }
+      if (newBalance <= 0) {
+        await manager.getRepository(Loan).update(loan.id, { status: LoanStatus.COMPLETED });
+      }
     });
   }
 

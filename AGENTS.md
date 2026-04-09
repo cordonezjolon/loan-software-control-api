@@ -988,3 +988,13 @@ describe('LoansController (e2e)', () => {
 - **CI/CD**: Automated testing, building, and deployment pipeline
 
 This agent specification ensures the development of a robust, scalable, and maintainable loan management system following industry best practices and clean code principles.
+
+---
+
+## Commit and Push Policy
+
+**Do NOT run `git commit` or `git push` (or any variant) unless the user explicitly requests it.**
+
+- Implement changes, run builds/tests/lint, and report status — but hold all git operations until the user says so (e.g. "commit this", "push now", "commit and push").
+- When the user asks for a commit, use a concise single-line `-m` message. Never use multi-line `-m` flags.
+- Never force-push or run destructive git commands without explicit confirmation.

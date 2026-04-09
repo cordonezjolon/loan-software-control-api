@@ -16,8 +16,8 @@ export const LOAN_MAX_PRINCIPAL = 5_000_000;
 /** Minimum annual interest rate as a decimal (1 %). */
 export const LOAN_MIN_INTEREST_RATE = 0.01;
 
-/** Maximum annual interest rate as a decimal (35 %). */
-export const LOAN_MAX_INTEREST_RATE = 0.35;
+/** Maximum annual interest rate as a decimal (200 %). */
+export const LOAN_MAX_INTEREST_RATE = 2;
 
 /** Minimum loan term in months (6 months). */
 export const LOAN_MIN_TERM_MONTHS = 6;
@@ -39,8 +39,8 @@ export const CALC_MAX_PRINCIPAL = 10_000_000;
 /** Minimum interest rate for standalone calculations (0.1 %). */
 export const CALC_MIN_INTEREST_RATE = 0.001;
 
-/** Maximum interest rate for standalone calculations (50 %). */
-export const CALC_MAX_INTEREST_RATE = 0.5;
+/** Maximum interest rate for standalone calculations (200 %). */
+export const CALC_MAX_INTEREST_RATE = 2;
 
 /** Minimum term for standalone calculations (1 month). */
 export const CALC_MIN_TERM_MONTHS = 1;

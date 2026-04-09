@@ -1,7 +1,7 @@
 import { IsNotEmpty, IsNumber, IsInt, Min, Max, IsOptional, IsEnum } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { LoanType } from '../entities/loan.entity';
+import { LoanType, InterestCalculationMethod } from '../entities/loan.entity';
 import {
   CALC_MIN_PRINCIPAL,
   CALC_MAX_PRINCIPAL,
@@ -38,7 +38,8 @@ export class LoanCalculationDto {
   })
   @Transform(({ value }) => parseFloat(value as string))
   @ApiProperty({
-    description: 'Annual interest rate as decimal (e.g., 0.05 for 5%)',
+    description:
+      'Interest rate as decimal. For DECLINING_BALANCE it is annual (e.g., 0.12 = 12%/year). For FLAT_RATE it is per installment on original principal (e.g., 0.05 = 5% each installment).',
     minimum: CALC_MIN_INTEREST_RATE,
     maximum: CALC_MAX_INTEREST_RATE,
     example: 0.055,
@@ -70,6 +71,16 @@ export class LoanCalculationDto {
     example: LoanType.MORTGAGE,
   })
   loanType?: LoanType;
+
+  @IsOptional()
+  @IsEnum(InterestCalculationMethod)
+  @ApiPropertyOptional({
+    description:
+      'How interest is applied. FLAT_RATE uses a fixed interest amount on the original principal per installment. DECLINING_BALANCE uses annual rate / 12 on the remaining balance.',
+    enum: InterestCalculationMethod,
+    default: InterestCalculationMethod.DECLINING_BALANCE,
+  })
+  interestCalculationMethod?: InterestCalculationMethod;
 
   @IsOptional()
   @IsNumber()

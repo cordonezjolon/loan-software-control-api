@@ -65,7 +65,9 @@ export class CreateLoanDto {
   })
   @Transform(({ value }) => parseFloat(value as string))
   @ApiProperty({
-    description: 'Annual interest rate as decimal (e.g., 0.05 for 5%)',
+    description:
+      'Interest rate as decimal. For DECLINING_BALANCE it is annual (e.g., 0.12 = 12%/year). ' +
+      'For FLAT_RATE it is applied per installment on original principal (e.g., 0.05 = 5% per installment).',
     minimum: LOAN_MIN_INTEREST_RATE,
     maximum: LOAN_MAX_INTEREST_RATE,
     example: 0.055,

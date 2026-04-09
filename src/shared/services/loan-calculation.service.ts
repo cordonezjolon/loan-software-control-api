@@ -300,15 +300,17 @@ export class LoanCalculationService {
 
   /**
    * Calculate high-level metrics for a flat-rate loan.
-   * Total interest = P × annual_rate × (term / 12).
-   * Monthly installment = (P + total_interest) / term.
+   * Interest per installment = P × rate.
+   * Total interest = (P × rate) × term.
+   * Monthly installment = (P / term) + (P × rate).
    */
   calculateFlatRateMetrics(
     principal: number,
     annualRate: number,
     termInMonths: number,
   ): { monthlyPayment: number; totalInterest: number; totalAmount: number } {
-    const totalInterest = Math.round(principal * annualRate * (termInMonths / 12) * 100) / 100;
+    const interestPerInstallment = principal * annualRate;
+    const totalInterest = Math.round(interestPerInstallment * termInMonths * 100) / 100;
     const totalAmount = principal + totalInterest;
     const monthlyPayment = Math.round((totalAmount / termInMonths) * 100) / 100;
     return { monthlyPayment, totalInterest, totalAmount };
@@ -380,7 +382,7 @@ export class LoanCalculationService {
     const { principal, annualRate, termInMonths, paidInstallments, rebatePercentage } = params;
     const remainingInstallments = termInMonths - paidInstallments;
     const monthlyPrincipal = principal / termInMonths;
-    const monthlyInterest = (principal * annualRate) / 12;
+    const monthlyInterest = principal * annualRate;
     const remainingPrincipal = Math.round(monthlyPrincipal * remainingInstallments * 100) / 100;
     const scheduledRemainingInterest =
       Math.round(monthlyInterest * remainingInstallments * 100) / 100;

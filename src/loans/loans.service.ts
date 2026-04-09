@@ -329,6 +329,7 @@ export class LoansService {
       principal,
       interestRate,
       termInMonths,
+      interestCalculationMethod,
       loanType: _loanType,
       downPayment = 0,
       riskAdjustment = 0,
@@ -338,45 +339,37 @@ export class LoansService {
     // Apply risk adjustment
     const effectiveRate = interestRate + riskAdjustment;
 
-    // Calculate basic loan metrics
-    const monthlyPayment = this.loanCalculationService.calculateMonthlyPayment(
-      principal,
-      effectiveRate,
-      termInMonths,
-    );
+    const method = interestCalculationMethod ?? InterestCalculationMethod.DECLINING_BALANCE;
 
-    const totalInterest = this.loanCalculationService.calculateTotalInterest(
-      principal,
-      monthlyPayment,
-      termInMonths,
-    );
-
-    const totalAmount = principal + totalInterest;
+    const financials = this.computeLoanFinancials(principal, effectiveRate, termInMonths, method);
 
     // Calculate loan-to-value ratio for secured loans
     const propertyValue = principal + downPayment;
     const loanToValueRatio = downPayment > 0 ? principal / propertyValue : undefined;
 
     // Generate amortization schedule
-    const amortizationSchedule = this.loanCalculationService.generateAmortizationSchedule({
-      principal,
-      interestRate: effectiveRate,
-      termInMonths,
-      startDate: new Date(),
-    });
+    const amortizationSchedule = this.loanCalculationService.generateSchedule(
+      {
+        principal,
+        interestRate: effectiveRate,
+        termInMonths,
+        startDate: new Date(),
+      },
+      method,
+    );
 
     // Calculate debt-to-income impact (simplified)
     const estimatedMonthlyIncome = 5000; // This would come from client data in real app
-    const debtToIncomeImpact = monthlyPayment / estimatedMonthlyIncome;
+    const debtToIncomeImpact = financials.monthlyPayment / estimatedMonthlyIncome;
 
     const startDate = new Date();
     const endDate = new Date(startDate);
     endDate.setMonth(endDate.getMonth() + termInMonths);
 
     return {
-      monthlyPayment,
-      totalInterest,
-      totalAmount,
+      monthlyPayment: financials.monthlyPayment,
+      totalInterest: financials.totalInterest,
+      totalAmount: financials.totalAmount,
       effectiveRate,
       loanToValueRatio,
       debtToIncomeImpact,
@@ -392,7 +385,7 @@ export class LoansService {
         totalPayments: termInMonths,
         firstPaymentDate: startDate.toISOString().split('T')[0],
         lastPaymentDate: endDate.toISOString().split('T')[0],
-        interestPercentage: (totalInterest / principal) * 100,
+        interestPercentage: (financials.totalInterest / principal) * 100,
       },
     };
   }
@@ -723,12 +716,19 @@ export class LoansService {
     createLoanDto: CreateLoanDto,
     client: Client,
   ): Promise<number> {
-    // Get base rate for loan type
-    let baseRate = createLoanDto.interestRate;
+    const hasExplicitRate =
+      createLoanDto.interestRate !== undefined && createLoanDto.interestRate !== null;
 
-    // If no rate provided, get current market rate
-    if (!baseRate) {
-      baseRate = await this.interestRateService.getCurrentRate(createLoanDto.loanType);
+    // When the caller provides an explicit rate, keep that value as the base.
+    // Automatic risk pricing is only applied when the system selects the base rate.
+    const baseRate = hasExplicitRate
+      ? createLoanDto.interestRate
+      : await this.interestRateService.getCurrentRate(createLoanDto.loanType);
+
+    // Apply any manual risk adjustment
+    const manualAdjustment = createLoanDto.riskAdjustment || 0;
+    if (hasExplicitRate) {
+      return baseRate + manualAdjustment;
     }
 
     // Calculate risk adjustment based on client profile
@@ -740,9 +740,6 @@ export class LoansService {
     };
 
     const riskAdjustmentData = this.interestRateService.calculateRiskAdjustment(riskProfile);
-
-    // Apply any manual risk adjustment
-    const manualAdjustment = createLoanDto.riskAdjustment || 0;
 
     return baseRate + riskAdjustmentData.riskAdjustment + manualAdjustment;
   }
