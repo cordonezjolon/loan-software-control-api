@@ -5,10 +5,10 @@ export class ApproveLoanDto {
   @IsOptional()
   @IsString()
   @MaxLength(500)
-  @ApiPropertyOptional({ 
+  @ApiPropertyOptional({
     description: 'Optional notes for loan approval',
     example: 'Approved after income verification and credit check',
-    maxLength: 500
+    maxLength: 500,
   })
   notes?: string;
 }
@@ -17,20 +17,20 @@ export class RejectLoanDto {
   @IsNotEmpty()
   @IsString()
   @MaxLength(500)
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Reason for loan rejection',
     example: 'Insufficient income documentation provided',
-    maxLength: 500
+    maxLength: 500,
   })
-  reason: string;
+  reason: string | undefined;
 
   @IsOptional()
   @IsString()
   @MaxLength(1000)
-  @ApiPropertyOptional({ 
+  @ApiPropertyOptional({
     description: 'Additional notes about the rejection',
     example: 'Customer can reapply after providing updated tax returns',
-    maxLength: 1000
+    maxLength: 1000,
   })
   additionalNotes?: string;
 }
@@ -39,20 +39,20 @@ export class LoanStatusUpdateDto {
   @IsNotEmpty()
   @IsString()
   @MaxLength(500)
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Reason or notes for status change',
     example: 'Customer requested loan cancellation due to changed circumstances',
-    maxLength: 500
+    maxLength: 500,
   })
-  reason: string;
+  reason: string | undefined;
 
   @IsOptional()
   @IsString()
   @MaxLength(1000)
-  @ApiPropertyOptional({ 
+  @ApiPropertyOptional({
     description: 'Additional details about the status change',
     example: 'No penalty fees applied due to cancellation within grace period',
-    maxLength: 1000
+    maxLength: 1000,
   })
   notes?: string;
 }

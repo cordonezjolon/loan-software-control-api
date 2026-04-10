@@ -13,8 +13,8 @@ export const LOAN_MIN_PRINCIPAL = 1_000;
 /** Maximum principal amount allowed when creating a loan (USD). */
 export const LOAN_MAX_PRINCIPAL = 5_000_000;
 
-/** Minimum annual interest rate as a decimal (1 %). */
-export const LOAN_MIN_INTEREST_RATE = 0.01;
+/** Minimum annual interest rate as a decimal (0.5 %). */
+export const LOAN_MIN_INTEREST_RATE = 0.005;
 
 /** Maximum annual interest rate as a decimal (200 %). */
 export const LOAN_MAX_INTEREST_RATE = 2;
