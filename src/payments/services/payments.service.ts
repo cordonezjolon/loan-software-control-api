@@ -73,6 +73,7 @@ export class PaymentsService {
 
     const payment = this.paymentRepository.create({
       installment,
+      loanId: installment.loan.id,
       amount: dto.amount,
       paymentMethod: dto.paymentMethod,
       paymentDate: new Date(dto.paymentDate),
@@ -115,10 +116,20 @@ export class PaymentsService {
       qb.andWhere('installment.id = :installmentId', { installmentId });
     }
     if (loanId) {
-      qb.andWhere('loan.id = :loanId', { loanId });
+      qb.andWhere('(installment.loanId::text = :loanId OR payment.loanId = :loanId)', {
+        loanId,
+      });
     }
     if (clientId) {
-      qb.andWhere('client.id = :clientId', { clientId });
+      qb.andWhere(
+        `(client.id::text = :clientId OR EXISTS (
+          SELECT 1
+          FROM loans direct_loan
+          WHERE direct_loan.id::text = payment.loanId
+            AND direct_loan."clientId"::text = :clientId
+        ))`,
+        { clientId },
+      );
     }
     if (status) {
       qb.andWhere('payment.status = :status', { status });
@@ -418,7 +429,7 @@ export class PaymentsService {
       prepaymentAction: action,
       originalMonthlyPayment: Number(loan.monthlyPayment),
     });
-    await this.persistPrepaymentTransaction(dto, loan, pending, newBalance, newSchedule);
+    await this.persistPrepaymentTransaction(dto, loan, pending, newBalance, newSchedule, action);
     return this.assemblePrepaymentResult(
       dto,
       loan,
@@ -479,17 +490,56 @@ export class PaymentsService {
     pending: LoanInstallment[],
     newBalance: number,
     newSchedule: AmortizationEntry[],
+    action: PrepaymentAction,
   ): Promise<void> {
     await this.paymentRepository.manager.transaction(async manager => {
       await this.savePrepaymentRecord(manager, dto, loan);
       await this.deletePendingInstallments(manager, pending);
       if (newBalance > 0) {
         await this.saveNewInstallmentSchedule(manager, loan, newSchedule);
+        await this.updateLoanAfterPrepayment(manager, loan, newSchedule, action);
       }
       if (newBalance <= 0) {
         await manager.getRepository(Loan).update(loan.id, { status: LoanStatus.COMPLETED });
       }
     });
+  }
+
+  private async updateLoanAfterPrepayment(
+    manager: import('typeorm').EntityManager,
+    loan: Loan,
+    newSchedule: AmortizationEntry[],
+    action: PrepaymentAction,
+  ): Promise<void> {
+    const loanRepo = manager.getRepository(Loan);
+    const update: Record<string, number | Date> = {};
+    const paidInstallments = loan.installments.filter(i => i.status === InstallmentStatus.PAID);
+    const paidInterest = paidInstallments.reduce(
+      (total, installment) => total + Number(installment.interestAmount),
+      0,
+    );
+    const futureInterest = newSchedule.reduce(
+      (total, installment) => total + Number(installment.interestAmount),
+      0,
+    );
+    const totalInterest = Number((paidInterest + futureInterest).toFixed(2));
+    const termInMonths = paidInstallments.length + newSchedule.length;
+
+    update.totalInterest = totalInterest;
+    update.totalAmount = Number((Number(loan.principal) + totalInterest).toFixed(2));
+    update.termInMonths = termInMonths;
+
+    if (action === PrepaymentAction.REDUCE_INSTALLMENT && newSchedule.length > 0) {
+      update.monthlyPayment = newSchedule[0].totalAmount;
+    }
+
+    if (newSchedule.length > 0) {
+      update.endDate = newSchedule[newSchedule.length - 1].dueDate;
+    }
+
+    if (Object.keys(update).length > 0) {
+      await loanRepo.update(loan.id, update);
+    }
   }
 
   private async savePrepaymentRecord(

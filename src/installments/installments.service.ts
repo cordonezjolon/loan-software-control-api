@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between, LessThanOrEqual } from 'typeorm';
 import { Cron } from '@nestjs/schedule';
 import { LoanInstallment, InstallmentStatus } from './entities/loan-installment.entity';
-import { Loan, LoanStatus } from '../loans/entities/loan.entity';
+import { Loan, LoanStatus, InterestCalculationMethod } from '../loans/entities/loan.entity';
 import { LoanPayment } from '../payments/entities/loan-payment.entity';
 import { FindInstallmentsDto } from './dto/find-installments.dto';
 import { PaginatedResult } from '../shared/interfaces/paginated-result.interface';
@@ -343,9 +343,34 @@ export class InstallmentsService {
    * Calculate remaining balance from installments
    */
   async calculateRemainingBalance(loanId: string): Promise<number> {
-    const installments = await this.findByLoanId(loanId);
+    const loan = await this.loanRepository.findOne({ where: { id: loanId } });
+    if (!loan) {
+      throw new NotFoundException(`Loan with ID ${loanId} not found`);
+    }
 
-    const unpaidInstallments = installments.filter(i => i.status !== InstallmentStatus.PAID);
+    const installments = await this.findByLoanId(loanId);
+    const unpaidInstallments = installments
+      .filter(i => i.status !== InstallmentStatus.PAID)
+      .sort((a, b) => a.installmentNumber - b.installmentNumber);
+    const lateFeesBalance = unpaidInstallments.reduce(
+      (total, installment) => total + Number(installment.lateFee),
+      0,
+    );
+
+    if (
+      (loan.interestCalculationMethod ?? InterestCalculationMethod.DECLINING_BALANCE) ===
+      InterestCalculationMethod.DECLINING_BALANCE
+    ) {
+      if (unpaidInstallments.length === 0) {
+        return lateFeesBalance;
+      }
+
+      const nextInstallment = unpaidInstallments[0];
+      const principalBalance =
+        Number(nextInstallment.principalAmount) + Number(nextInstallment.remainingBalance);
+
+      return Number((principalBalance + lateFeesBalance).toFixed(2));
+    }
 
     return unpaidInstallments.reduce((total, installment) => {
       return total + Number(installment.totalAmount) + Number(installment.lateFee);

@@ -401,6 +401,35 @@ export class LoanCalculationService {
     };
   }
 
+  /**
+   * Calculate early-settlement amount for declining-balance loans.
+   *
+   * Rule: settlement = remaining principal + current month interest.
+   */
+  calculateDecliningBalanceEarlySettlement(params: {
+    remainingPrincipal: number;
+    annualRate: number;
+  }): {
+    currentPeriodInterest: number;
+    settlementAmount: number;
+  } {
+    const { remainingPrincipal, annualRate } = params;
+    const monthlyRate = annualRate / 12;
+    const currentPeriodInterest = Math.max(
+      0,
+      Math.round(remainingPrincipal * monthlyRate * 100) / 100,
+    );
+    const settlementAmount = Math.max(
+      0,
+      Math.round((remainingPrincipal + currentPeriodInterest) * 100) / 100,
+    );
+
+    return {
+      currentPeriodInterest,
+      settlementAmount,
+    };
+  }
+
   // ─── Declining-Balance Prepayment ─────────────────────────────────────────
 
   /**

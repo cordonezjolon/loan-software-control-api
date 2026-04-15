@@ -215,12 +215,8 @@ export class LoansController {
   }> {
     const loan = await this.loansService.findOne(id);
     const currentBalance = await this.loansService.getCurrentLoanBalance(id);
-
-    // Calculate remaining payments (simplified)
-    const totalPayments = loan.termInMonths;
-    const paidInstallments =
-      loan.installments?.filter(i => i.status === InstallmentStatus.PAID).length || 0;
-    const remainingPayments = totalPayments - paidInstallments;
+    const remainingPayments =
+      loan.installments?.filter(i => i.status !== InstallmentStatus.PAID).length || 0;
 
     return {
       currentBalance,

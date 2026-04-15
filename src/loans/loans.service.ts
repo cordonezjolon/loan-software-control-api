@@ -421,20 +421,32 @@ export class LoansService {
    */
   async getCurrentLoanBalance(loanId: string): Promise<number> {
     const loan = await this.findOne(loanId);
+    const method = loan.interestCalculationMethod ?? InterestCalculationMethod.DECLINING_BALANCE;
 
-    // Find the last paid installment
-    const lastPaidInstallment = await this.installmentRepository
-      .createQueryBuilder('installment')
-      .where('installment.loanId = :loanId', { loanId })
-      .andWhere('installment.status = :status', { status: InstallmentStatus.PAID })
-      .orderBy('installment.installmentNumber', 'DESC')
-      .getOne();
-
-    if (!lastPaidInstallment) {
-      return loan.principal; // No payments made yet
+    if (method === InterestCalculationMethod.FLAT_RATE) {
+      return loan.installments
+        .filter(i => i.status !== InstallmentStatus.PAID)
+        .reduce((total, installment) => total + Number(installment.totalAmount), 0);
     }
 
-    return lastPaidInstallment.remainingBalance;
+    return this.getDecliningOutstandingPrincipal(loan);
+  }
+
+  private getDecliningOutstandingPrincipal(loan: Loan): number {
+    const unpaidInstallments = loan.installments
+      .filter(i => i.status !== InstallmentStatus.PAID)
+      .sort((a, b) => a.installmentNumber - b.installmentNumber);
+
+    if (unpaidInstallments.length === 0) {
+      return 0;
+    }
+
+    const nextInstallment = unpaidInstallments[0];
+    return Number(
+      (Number(nextInstallment.principalAmount) + Number(nextInstallment.remainingBalance)).toFixed(
+        2,
+      ),
+    );
   }
 
   /**
@@ -574,7 +586,7 @@ export class LoansService {
   /**
    * Preview the settlement amount due if the borrower pays off the loan today.
    * For FLAT_RATE loans: forgives a fraction of remaining scheduled interest.
-   * For DECLINING_BALANCE loans: settlement = outstanding principal (no rebate).
+   * For DECLINING_BALANCE loans: settlement = outstanding principal + current-month interest.
    */
   async previewEarlySettlement(loanId: string): Promise<EarlySettlementPreviewDto> {
     const loan = await this.loadLoanForSettlement(loanId);
@@ -625,6 +637,7 @@ export class LoansService {
       scheduledRemainingInterest: settlement.scheduledRemainingInterest,
       rebatePercentage,
       rebateAmount: settlement.rebateAmount,
+      currentPeriodInterest: 0,
       settlementAmount: settlement.settlementAmount,
       previewDate: new Date().toISOString().split('T')[0],
     };
@@ -634,14 +647,13 @@ export class LoansService {
     loan: Loan,
     paidInstallments: number,
   ): EarlySettlementPreviewDto {
-    const remainingInstallments = loan.termInMonths - paidInstallments;
-    const lastPaid = loan.installments
-      .filter(i => i.status === InstallmentStatus.PAID)
-      .sort((a, b) => b.installmentNumber - a.installmentNumber)
-      .at(0);
-    const remainingPrincipal = lastPaid
-      ? Number(lastPaid.remainingBalance)
-      : Number(loan.principal);
+    const pendingInstallments = loan.installments.filter(i => i.status !== InstallmentStatus.PAID);
+    const remainingInstallments = pendingInstallments.length;
+    const remainingPrincipal = this.getDecliningOutstandingPrincipal(loan);
+    const settlement = this.loanCalculationService.calculateDecliningBalanceEarlySettlement({
+      remainingPrincipal,
+      annualRate: Number(loan.interestRate),
+    });
 
     return {
       loanId: loan.id,
@@ -652,7 +664,8 @@ export class LoansService {
       scheduledRemainingInterest: 0,
       rebatePercentage: 0,
       rebateAmount: 0,
-      settlementAmount: remainingPrincipal,
+      currentPeriodInterest: settlement.currentPeriodInterest,
+      settlementAmount: settlement.settlementAmount,
       previewDate: new Date().toISOString().split('T')[0],
     };
   }
