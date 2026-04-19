@@ -33,7 +33,7 @@ import { Notification } from '../notifications/entities/notification.entity';
           Notification,
         ],
         migrations: [__dirname + '/migrations/*{.ts,.js}'],
-        synchronize: configService.get('NODE_ENV') === 'development',
+        synchronize: false,
         logging: configService.get('NODE_ENV') === 'development',
         ssl: configService.get('NODE_ENV') === 'production' ? { rejectUnauthorized: false } : false,
       }),

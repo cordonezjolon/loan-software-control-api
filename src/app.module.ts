@@ -7,6 +7,7 @@ import * as winston from 'winston';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from '@/auth/auth.module';
+import { UsersModule } from '@/users/users.module';
 import { ClientsModule } from '@/clients/clients.module';
 import { LoansModule } from '@/loans/loans.module';
 import { InstallmentsModule } from '@/installments/installments.module';
@@ -62,9 +63,9 @@ import { DatabaseModule } from '@/database/database.module';
     }),
 
     // Feature modules
-    DatabaseModule,
     SharedModule,
     AuthModule,
+    UsersModule,
     ClientsModule,
     LoansModule,
     InstallmentsModule,

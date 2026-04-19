@@ -9,8 +9,7 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
 
-import { AuthService } from './auth.service';
-import { User } from './entities/user.entity';
+import { AuthService, AuthenticatedUser } from './auth.service';
 import { LocalAuthGuard } from './guards/local-auth.guard';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
@@ -43,7 +42,7 @@ export class AuthController {
     type: JwtAuthResponse,
   })
   @ApiBody({ type: LoginDto })
-  login(@Request() req: { user: Omit<User, 'passwordHash'> }): JwtAuthResponse {
+  login(@Request() req: { user: AuthenticatedUser }): JwtAuthResponse {
     return this.authService.login(req.user);
   }
 
@@ -54,7 +53,7 @@ export class AuthController {
     status: HttpStatus.OK,
     description: 'Token validation result',
   })
-  async validateToken(@Body('token') token: string): Promise<{ valid: boolean; user?: Omit<User, 'passwordHash'> }> {
+  async validateToken(@Body('token') token: string): Promise<{ valid: boolean; user?: AuthenticatedUser }> {
     return this.authService.validateToken(token);
   }
 }

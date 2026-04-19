@@ -33,10 +33,10 @@ export class AddInterestCalculationAndPrepayment1701234567891 implements Migrati
         ADD COLUMN "loanId" UUID
     `);
 
-    // Make installmentId nullable (prepayment and settlement records don't link to an installment)
+    // Make instalmentId nullable (prepayment and settlement records don't link to an installment)
     await queryRunner.query(`
       ALTER TABLE "loan_payments"
-        ALTER COLUMN "installmentId" DROP NOT NULL
+        ALTER COLUMN "instalmentId" DROP NOT NULL
     `);
 
     // Add foreign key for loanId in loan_payments

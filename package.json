@@ -20,10 +20,10 @@
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "test:unit": "jest --config ./test/jest-unit.json --passWithNoTests",
     "typeorm": "typeorm",
-    "migration:generate": "typeorm migration:generate -d src/database/data-source.ts",
-    "migration:run": "typeorm migration:run -d src/database/data-source.ts",
-    "migration:revert": "typeorm migration:revert -d src/database/data-source.ts",
-    "seed": "ts-node src/database/seeds/seed.ts",
+    "migration:generate": "ts-node -r tsconfig-paths/register node_modules/typeorm/cli -d src/database/data-source.ts migration:generate",
+    "migration:run": "ts-node -r tsconfig-paths/register node_modules/typeorm/cli -d src/database/data-source.ts migration:run",
+    "migration:revert": "ts-node -r tsconfig-paths/register node_modules/typeorm/cli -d src/database/data-source.ts migration:revert",
+    "seed": "ts-node -r tsconfig-paths/register src/database/seeds/seed.ts",
     "prepare": "husky install"
   },
   "dependencies": {

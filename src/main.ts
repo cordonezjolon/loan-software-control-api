@@ -69,10 +69,21 @@ async function bootstrap(): Promise<void> {
   app.useGlobalInterceptors(new ResponseInterceptor());
 
   // CORS configuration
-  const corsOrigins = configService
+  const configuredOrigins = configService
     .get<string>('CORS_ORIGIN', 'http://localhost:3001')
     .split(',')
-    .map((o) => o.trim());
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+
+  const corsOrigins = nodeEnv === 'development'
+    ? Array.from(new Set([
+        ...configuredOrigins,
+        'http://localhost:3001',
+        'http://localhost:3002',
+        'http://127.0.0.1:3001',
+        'http://127.0.0.1:3002',
+      ]))
+    : configuredOrigins;
 
   app.enableCors({
     origin: corsOrigins.length === 1 ? corsOrigins[0] : corsOrigins,

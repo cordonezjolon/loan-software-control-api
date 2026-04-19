@@ -9,7 +9,7 @@ export class LoginDto {
     example: 'john.doe',
     minLength: 3,
   })
-  username: string;
+  username!: string;
 
   @IsString()
   @IsNotEmpty()
@@ -19,5 +19,5 @@ export class LoginDto {
     example: 'password123',
     minLength: 6,
   })
-  password: string;
+  password!: string;
 }

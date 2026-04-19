@@ -1,0 +1,19 @@
+import { MigrationInterface, QueryRunner } from 'typeorm';
+
+export class AddClientOccupationColumn1713500000000 implements MigrationInterface {
+  name = 'AddClientOccupationColumn1713500000000';
+
+  public async up(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(`
+      ALTER TABLE "clients"
+      ADD COLUMN IF NOT EXISTS "occupation" varchar
+    `);
+  }
+
+  public async down(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(`
+      ALTER TABLE "clients"
+      DROP COLUMN IF EXISTS "occupation"
+    `);
+  }
+}
