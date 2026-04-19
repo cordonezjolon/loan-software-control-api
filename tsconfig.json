@@ -9,7 +9,6 @@
     "target": "ES2020",
     "sourceMap": true,
     "outDir": "./dist",
-    "baseUrl": "./",
     "incremental": true,
     "skipLibCheck": true,
     "strictNullChecks": true,
@@ -18,15 +17,15 @@
     "forceConsistentCasingInFileNames": true,
     "noFallthroughCasesInSwitch": true,
     "paths": {
-      "@/*": ["src/*"],
-      "@/auth/*": ["src/auth/*"],
-      "@/clients/*": ["src/clients/*"],
-      "@/loans/*": ["src/loans/*"],
-      "@/installments/*": ["src/installments/*"],
-      "@/payments/*": ["src/payments/*"],
-      "@/shared/*": ["src/shared/*"],
-      "@/config/*": ["src/config/*"],
-      "@/database/*": ["src/database/*"]
+      "@/*": ["./src/*"],
+      "@/auth/*": ["./src/auth/*"],
+      "@/clients/*": ["./src/clients/*"],
+      "@/loans/*": ["./src/loans/*"],
+      "@/installments/*": ["./src/installments/*"],
+      "@/payments/*": ["./src/payments/*"],
+      "@/shared/*": ["./src/shared/*"],
+      "@/config/*": ["./src/config/*"],
+      "@/database/*": ["./src/database/*"]
     }
   },
   "include": ["src/**/*", "test/**/*"],

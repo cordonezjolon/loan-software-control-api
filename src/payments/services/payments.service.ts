@@ -116,7 +116,7 @@ export class PaymentsService {
       qb.andWhere('installment.id = :installmentId', { installmentId });
     }
     if (loanId) {
-      qb.andWhere('(installment.loanId::text = :loanId OR payment.loanId = :loanId)', {
+      qb.andWhere('(loan.id::text = :loanId OR payment.loanId = :loanId)', {
         loanId,
       });
     }
