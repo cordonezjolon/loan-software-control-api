@@ -9,23 +9,26 @@ async function seed(): Promise<void> {
   try {
     console.log('🌱 Starting database seed...');
 
-    const adminPasswordHash = await bcrypt.hash('admin123', 10);
+    await upsertAdminUser(queryRunner);
+    logSeededUser();
+  } catch (error) {
+    console.error('❌ Seed failed:', error);
+    process.exit(1);
+  } finally {
+    await AppDataSource.destroy();
+  }
+}
 
-    // Upsert admin user (safe to re-run)
-    await queryRunner.query(`
+async function upsertAdminUser(
+  queryRunner: ReturnType<typeof AppDataSource.createQueryRunner>,
+): Promise<void> {
+  const adminPasswordHash = await bcrypt.hash('admin123', 10);
+
+  await queryRunner.query(
+    `
       INSERT INTO "users" (
-        "id",
-        "username",
-        "email",
-        "firstName",
-        "lastName",
-        "passwordHash",
-        "role",
-        "status",
-        "emailVerified",
-        "failedLoginAttempts",
-        "lockedUntil",
-        "lastPasswordChangeAt"
+        "id", "username", "email", "firstName", "lastName", "passwordHash",
+        "role", "status", "emailVerified", "failedLoginAttempts", "lockedUntil", "lastPasswordChangeAt"
       )
       VALUES (
         '550e8400-e29b-41d4-a716-446655440000',
@@ -55,16 +58,14 @@ async function seed(): Promise<void> {
         "lastPasswordChangeAt" = NOW(),
         "deletedAt" = NULL,
         "updatedAt" = NOW()
-    `, [adminPasswordHash]);
+    `,
+    [adminPasswordHash],
+  );
+}
 
-    console.log('✅ User seeded:');
-    console.log('   admin / admin123 (role: admin)');
-  } catch (error) {
-    console.error('❌ Seed failed:', error);
-    process.exit(1);
-  } finally {
-    await AppDataSource.destroy();
-  }
+function logSeededUser(): void {
+  console.log('✅ User seeded:');
+  console.log('   admin / admin123 (role: admin)');
 }
 
 void seed();

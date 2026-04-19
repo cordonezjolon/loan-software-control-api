@@ -1,8 +1,6 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class SyncPaymentStatusEnumWithEntity1713900000000
-  implements MigrationInterface
-{
+export class SyncPaymentStatusEnumWithEntity1713900000000 implements MigrationInterface {
   name = 'SyncPaymentStatusEnumWithEntity1713900000000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
@@ -10,7 +8,7 @@ export class SyncPaymentStatusEnumWithEntity1713900000000
     await queryRunner.query(`ALTER TYPE "payment_status" ADD VALUE IF NOT EXISTS 'cancelled'`);
   }
 
-  public async down(queryRunner: QueryRunner): Promise<void> {
+  public async down(_queryRunner: QueryRunner): Promise<void> {
     // PostgreSQL does not support safely removing enum labels in-place.
     // Down migration intentionally no-op for enum label additions.
   }

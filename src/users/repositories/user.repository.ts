@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, FindOptionsWhere } from 'typeorm';
+import { Repository } from 'typeorm';
 import { QueryDeepPartialEntity } from 'typeorm/query-builder/QueryPartialEntity';
 import { User, UserRole, UserStatus } from '../../auth/entities/user.entity';
 
@@ -94,11 +94,7 @@ export class UserRepository {
       query = query.andWhere('user.status = :status', { status });
     }
 
-    return query
-      .orderBy(`user.${sortBy}`, sortOrder)
-      .skip(skip)
-      .take(take)
-      .getManyAndCount();
+    return query.orderBy(`user.${sortBy}`, sortOrder).skip(skip).take(take).getManyAndCount();
   }
 
   async create(user: Partial<User>): Promise<User> {
@@ -157,11 +153,7 @@ export class UserRepository {
   }
 
   async incrementFailedLoginAttempts(id: string): Promise<void> {
-    await this.repository.increment(
-      { id },
-      'failedLoginAttempts',
-      1,
-    );
+    await this.repository.increment({ id }, 'failedLoginAttempts', 1);
   }
 
   async resetFailedLoginAttempts(id: string): Promise<void> {

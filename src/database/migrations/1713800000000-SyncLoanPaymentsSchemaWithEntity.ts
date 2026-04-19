@@ -1,31 +1,37 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class SyncLoanPaymentsSchemaWithEntity1713800000000
-  implements MigrationInterface
-{
+export class SyncLoanPaymentsSchemaWithEntity1713800000000 implements MigrationInterface {
   name = 'SyncLoanPaymentsSchemaWithEntity1713800000000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(`
-      ALTER TABLE "loan_payments"
-      ADD COLUMN IF NOT EXISTS "paymentDate" date
-    `);
+    await this.addColumns(queryRunner);
+    await this.backfillReferenceNumber(queryRunner);
+    await this.backfillPaymentDate(queryRunner);
+    await queryRunner.query('ALTER TABLE "loan_payments" ALTER COLUMN "paymentDate" SET NOT NULL');
+  }
 
-    await queryRunner.query(`
-      ALTER TABLE "loan_payments"
-      ADD COLUMN IF NOT EXISTS "referenceNumber" character varying
-    `);
+  public async down(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(`ALTER TABLE "loan_payments" DROP COLUMN IF EXISTS "notes"`);
+    await queryRunner.query(`ALTER TABLE "loan_payments" DROP COLUMN IF EXISTS "referenceNumber"`);
+    await queryRunner.query(`ALTER TABLE "loan_payments" DROP COLUMN IF EXISTS "paymentDate"`);
+  }
 
-    await queryRunner.query(`
-      ALTER TABLE "loan_payments"
-      ADD COLUMN IF NOT EXISTS "notes" character varying
-    `);
+  private async addColumns(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(
+      'ALTER TABLE "loan_payments" ADD COLUMN IF NOT EXISTS "paymentDate" date',
+    );
+    await queryRunner.query(
+      'ALTER TABLE "loan_payments" ADD COLUMN IF NOT EXISTS "referenceNumber" character varying',
+    );
+    await queryRunner.query(
+      'ALTER TABLE "loan_payments" ADD COLUMN IF NOT EXISTS "notes" character varying',
+    );
+    await queryRunner.query(
+      'ALTER TABLE "loan_payments" ADD COLUMN IF NOT EXISTS "createdAt" TIMESTAMP NOT NULL DEFAULT now()',
+    );
+  }
 
-    await queryRunner.query(`
-      ALTER TABLE "loan_payments"
-      ADD COLUMN IF NOT EXISTS "createdAt" TIMESTAMP NOT NULL DEFAULT now()
-    `);
-
+  private async backfillReferenceNumber(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`
       DO $$
       BEGIN
@@ -40,7 +46,9 @@ export class SyncLoanPaymentsSchemaWithEntity1713800000000
         END IF;
       END $$;
     `);
+  }
 
+  private async backfillPaymentDate(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`
       DO $$
       BEGIN
@@ -59,16 +67,5 @@ export class SyncLoanPaymentsSchemaWithEntity1713800000000
         END IF;
       END $$;
     `);
-
-    await queryRunner.query(`
-      ALTER TABLE "loan_payments"
-      ALTER COLUMN "paymentDate" SET NOT NULL
-    `);
-  }
-
-  public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(`ALTER TABLE "loan_payments" DROP COLUMN IF EXISTS "notes"`);
-    await queryRunner.query(`ALTER TABLE "loan_payments" DROP COLUMN IF EXISTS "referenceNumber"`);
-    await queryRunner.query(`ALTER TABLE "loan_payments" DROP COLUMN IF EXISTS "paymentDate"`);
   }
 }

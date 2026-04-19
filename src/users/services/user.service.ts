@@ -1,11 +1,22 @@
-import { Injectable, BadRequestException, ConflictException, Logger, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  ConflictException,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
+import { randomBytes } from 'crypto';
 import { QueryDeepPartialEntity } from 'typeorm/query-builder/QueryPartialEntity';
 import { User, UserStatus } from '../../auth/entities/user.entity';
 import { UserRepository, FindUsersOptions } from '../repositories/user.repository';
 import { CreateUserDto } from '../../auth/dto/create-user.dto';
 import { UpdateUserDto } from '../../auth/dto/update-user.dto';
-import { ChangePasswordDto, ResetPasswordDto, VerifyEmailDto } from '../../auth/dto/password-management.dto';
+import {
+  ChangePasswordDto,
+  ResetPasswordDto,
+  VerifyEmailDto,
+} from '../../auth/dto/password-management.dto';
 import { UserProfileDto, UserListDto } from '../../auth/dto/user-profile.dto';
 import { BCRYPT_SALT_ROUNDS } from '../../shared/constants';
 
@@ -67,7 +78,9 @@ export class UserService {
 
     const hashedPassword = await bcrypt.hash(createUserDto.password, BCRYPT_SALT_ROUNDS);
     const emailVerificationToken = this.generateRandomToken();
-    const emailVerificationTokenExpiresAt = this.getExpiryDate(this.EMAIL_VERIFICATION_TOKEN_EXPIRY_HOURS);
+    const emailVerificationTokenExpiresAt = this.getExpiryDate(
+      this.EMAIL_VERIFICATION_TOKEN_EXPIRY_HOURS,
+    );
 
     const user = await this.userRepository.create({
       username: createUserDto.username,
@@ -97,61 +110,17 @@ export class UserService {
       throw new NotFoundException('User not found');
     }
 
-    // Check for unique constraints
-    if (updateUserDto.email && updateUserDto.email !== user.email) {
-      const emailExists = await this.userRepository.checkIfEmailExists(updateUserDto.email, id);
-      if (emailExists) {
-        throw new ConflictException('Email already exists');
-      }
-    }
+    await this.ensureEmailAvailability(id, user.email, updateUserDto.email);
 
-    const updates: QueryDeepPartialEntity<User> = {};
-
-    if (updateUserDto.email !== undefined) {
-      updates.email = updateUserDto.email;
-    }
-
-    if (updateUserDto.firstName !== undefined) {
-      updates.firstName = updateUserDto.firstName;
-    }
-
-    if (updateUserDto.lastName !== undefined) {
-      updates.lastName = updateUserDto.lastName;
-    }
-
-    if (updateUserDto.phoneNumber !== undefined) {
-      updates.phoneNumber = updateUserDto.phoneNumber;
-    }
-
-    if (updateUserDto.role !== undefined) {
-      updates.role = updateUserDto.role;
-    }
-
-    if (updateUserDto.status !== undefined) {
-      updates.status = updateUserDto.status;
-    }
-
-    if (updateUserDto.metadata !== undefined) {
-      updates.metadata = updateUserDto.metadata as QueryDeepPartialEntity<User['metadata']>;
-    }
-
-    // If email is being updated, require re-verification
-    if (updateUserDto.email && updateUserDto.email !== user.email) {
-      updates.email = updateUserDto.email;
-      updates.emailVerified = false;
-      updates.status = UserStatus.PENDING_EMAIL_VERIFICATION;
-      updates.emailVerificationToken = this.generateRandomToken();
-      updates.emailVerificationTokenExpiresAt = this.getExpiryDate(
-        this.EMAIL_VERIFICATION_TOKEN_EXPIRY_HOURS,
-      );
-
-      // TODO: Send email verification email to new email
-    }
+    const updates = this.buildUserUpdates(user, updateUserDto);
 
     const updatedUser = await this.userRepository.update(id, updates);
-    this.logger.log(`User updated: ${user.username}`);
+    if (!updatedUser) {
+      throw new NotFoundException('User not found');
+    }
 
-    return this.mapToUserProfileDto(updatedUser!);
+    this.logger.log(`User updated: ${user.username}`);
+    return this.mapToUserProfileDto(updatedUser);
   }
 
   async deleteUser(id: string, soft: boolean = true): Promise<void> {
@@ -193,7 +162,10 @@ export class UserService {
       throw new BadRequestException('Passwords do not match');
     }
 
-    const passwordMatches = await bcrypt.compare(changePasswordDto.currentPassword, user.passwordHash);
+    const passwordMatches = await bcrypt.compare(
+      changePasswordDto.currentPassword,
+      user.passwordHash,
+    );
     if (!passwordMatches) {
       throw new BadRequestException('Current password is incorrect');
     }
@@ -289,7 +261,9 @@ export class UserService {
     }
 
     const emailVerificationToken = this.generateRandomToken();
-    const emailVerificationTokenExpiresAt = this.getExpiryDate(this.EMAIL_VERIFICATION_TOKEN_EXPIRY_HOURS);
+    const emailVerificationTokenExpiresAt = this.getExpiryDate(
+      this.EMAIL_VERIFICATION_TOKEN_EXPIRY_HOURS,
+    );
 
     await this.userRepository.update(user.id, {
       emailVerificationToken,
@@ -401,7 +375,7 @@ export class UserService {
   }
 
   private generateRandomToken(): string {
-    return require('crypto').randomBytes(32).toString('hex');
+    return randomBytes(32).toString('hex');
   }
 
   private getExpiryDate(hours: number): Date {
@@ -414,5 +388,45 @@ export class UserService {
     const result = new Date(date);
     result.setMinutes(result.getMinutes() + minutes);
     return result;
+  }
+
+  private async ensureEmailAvailability(
+    userId: string,
+    currentEmail: string,
+    nextEmail?: string,
+  ): Promise<void> {
+    if (!nextEmail || nextEmail === currentEmail) {
+      return;
+    }
+
+    const emailExists = await this.userRepository.checkIfEmailExists(nextEmail, userId);
+    if (emailExists) {
+      throw new ConflictException('Email already exists');
+    }
+  }
+
+  private buildUserUpdates(user: User, dto: UpdateUserDto): QueryDeepPartialEntity<User> {
+    const updates: QueryDeepPartialEntity<User> = {
+      ...(dto.email !== undefined ? { email: dto.email } : {}),
+      ...(dto.firstName !== undefined ? { firstName: dto.firstName } : {}),
+      ...(dto.lastName !== undefined ? { lastName: dto.lastName } : {}),
+      ...(dto.phoneNumber !== undefined ? { phoneNumber: dto.phoneNumber } : {}),
+      ...(dto.role !== undefined ? { role: dto.role } : {}),
+      ...(dto.status !== undefined ? { status: dto.status } : {}),
+      ...(dto.metadata !== undefined
+        ? { metadata: dto.metadata as QueryDeepPartialEntity<User['metadata']> }
+        : {}),
+    };
+
+    if (dto.email && dto.email !== user.email) {
+      updates.emailVerified = false;
+      updates.status = UserStatus.PENDING_EMAIL_VERIFICATION;
+      updates.emailVerificationToken = this.generateRandomToken();
+      updates.emailVerificationTokenExpiresAt = this.getExpiryDate(
+        this.EMAIL_VERIFICATION_TOKEN_EXPIRY_HOURS,
+      );
+    }
+
+    return updates;
   }
 }

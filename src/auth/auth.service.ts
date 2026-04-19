@@ -1,8 +1,9 @@
-import { Injectable, ConflictException, Logger, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import { Injectable, ConflictException, Logger, UnauthorizedException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
+import { randomBytes } from 'crypto';
 
 import { User, UserStatus } from './entities/user.entity';
 import { RegisterDto } from './dto/register.dto';
@@ -41,10 +42,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
   ) {}
 
-  async validateUser(
-    username: string,
-    password: string,
-  ): Promise<AuthenticatedUser | null> {
+  async validateUser(username: string, password: string): Promise<AuthenticatedUser | null> {
     const user = await this.userRepository.findOne({ where: { username } });
 
     if (!user) {
@@ -53,7 +51,9 @@ export class AuthService {
 
     // Check if user is locked
     if (user.isLocked()) {
-      throw new UnauthorizedException('Account is locked due to too many failed login attempts. Please try again later.');
+      throw new UnauthorizedException(
+        'Account is locked due to too many failed login attempts. Please try again later.',
+      );
     }
 
     // Check if user can login
@@ -62,7 +62,7 @@ export class AuthService {
     }
 
     const passwordMatches = await bcrypt.compare(password, user.passwordHash);
-    
+
     if (!passwordMatches) {
       // Record failed login attempt
       await this.recordFailedLoginAttempt(user.id);
@@ -145,9 +145,7 @@ export class AuthService {
     return this.login(this.toAuthenticatedUser(savedUser));
   }
 
-  async validateToken(
-    token: string,
-  ): Promise<{ valid: boolean; user?: AuthenticatedUser }> {
+  async validateToken(token: string): Promise<{ valid: boolean; user?: AuthenticatedUser }> {
     try {
       const decoded = this.jwtService.verify<{ sub: string }>(token);
       const user = await this.userRepository.findOne({ where: { id: decoded.sub } });
@@ -188,7 +186,7 @@ export class AuthService {
   }
 
   private generateRandomToken(): string {
-    return require('crypto').randomBytes(32).toString('hex');
+    return randomBytes(32).toString('hex');
   }
 
   private getExpiryDate(hours: number): Date {
